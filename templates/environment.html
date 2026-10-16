@@ -37,16 +37,15 @@
 
 <section class="card surface-card mb-3" id="conditions">
   {{ ui.panel('LATEST BY ZONE', 'Zone conditions', 'Latest valid or suspect reading at or before ' ~ (current.snapshot_time | clock) ~ '. Invalid values are never shown as a condition.') }}
-  <div class="table-responsive"><table class="table modern-table interior-table mb-0"><thead><tr><th>Zone / work area</th><th class="text-end">Temperature</th><th class="text-end">Humidity</th><th>Reading time</th><th>Freshness</th><th>Source</th><th>Quality</th></tr></thead><tbody>
+  <div class="table-responsive"><table class="table modern-table interior-table mb-0"><thead><tr><th>Zone / work area</th><th class="text-end">Temperature</th><th class="text-end">Humidity</th><th>Reading time</th><th>Freshness</th><th>Quality</th></tr></thead><tbody>
   {% for z in c.zones %}{% set r = z.reading %}
-    <tr><td><strong>{{ z.zone.name }}</strong><div class="cell-sub">{{ z.zone.zone_code }} · {{ z.zone.source }}</div></td>
+    <tr><td><strong>{{ z.zone.name }}</strong><div class="cell-sub">{{ z.zone.zone_code }}</div></td>
       <td class="text-end">{{ '%.1f °C'|format(r.temperature_c) if r else '—' }}</td>
       <td class="text-end">{{ '%.0f %%RH'|format(r.humidity_pct) if r else '—' }}</td>
       <td>{% if r %}{{ z.local_time }}<div class="cell-sub">{{ z.age_minutes }} min before as-of</div>{% else %}No reading{% endif %}</td>
       <td>{{ fresh_badge(z.freshness) }}</td>
-      <td>{% if r %}{{ z.method_label }} {{ label_badge(r.data_label) }}{% if r.device_key %}<div class="cell-sub">Device {{ r.device_key }}</div>{% endif %}{% else %}—{% endif %}</td>
       <td>{% if r %}{{ quality_badge(r.quality) }}{% if r.quality_note %}<div class="cell-sub">{{ r.quality_note }}</div>{% endif %}{% else %}—{% endif %}{% if z.latest_invalid %}<div class="cell-sub text-danger">Latest value received was invalid</div>{% endif %}</td></tr>
-  {% else %}<tr><td colspan="7" class="table-empty">No zones registered.</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="6" class="table-empty">No zones registered.</td></tr>{% endfor %}
   </tbody></table></div>
   <div class="card-footer">Zones are the six M123 work types (verified source data; LM005S1 has no zone IDs) plus any zone a supervisor adds. Current ≤ {{ cfg.ENV_STALE_MINUTES }} min; stale after that; missing = no reading at or before the as-of time. Thresholds are prototype defaults to confirm with the client.</div>
 </section>
@@ -72,7 +71,6 @@
   {{ ui.panel('TRENDS', 'Temperature and humidity, last 6 hours', 'Zones with at least ' ~ cfg.ENV_TREND_MIN_READINGS ~ ' valid or suspect readings in the 6 hours before ' ~ (current.snapshot_time | clock) ~ '.') }}
   <div class="card-body interior-card-body">
   {% if trends %}
-    {% if trends|selectattr('synthetic')|list %}<p class="helper-text"><span class="data-label data-label-synthetic">SYNTHETIC</span> Series marked SYNTHETIC in the legend are demo data, not SMD conditions.</p>{% endif %}
     <div class="env-trend-grid">
       <div><h3 class="env-chart-title">Temperature (°C)</h3><div id="env-temp-chart" class="chart env-chart" role="img" aria-label="Temperature by zone over time; values in the table below."></div></div>
       <div><h3 class="env-chart-title">Relative humidity (%RH)</h3><div id="env-rh-chart" class="chart env-chart" role="img" aria-label="Relative humidity by zone over time; values in the table below."></div></div>
@@ -111,9 +109,9 @@
   </section></div>
   <div class="col-xl-7"><section class="card surface-card h-100" id="recent">
     {{ ui.panel('READING LOG', 'Recent readings', 'Newest first, all times (up to 40). Kept in a separate database from WMS/LMS data.') }}
-    <div class="table-responsive table-scroll"><table class="table modern-table interior-table mb-0"><thead class="sticky-top"><tr><th>Local time</th><th>Zone</th><th class="text-end">°C</th><th class="text-end">%RH</th><th>Method</th><th>Label</th><th>Quality</th><th>By / device</th></tr></thead><tbody>
-    {% for r in recent %}<tr><td>{{ r.local_time }}</td><td>{{ r.zone_code }}</td><td class="text-end">{{ '%.1f'|format(r.temperature_c) if r.temperature_c is not none else '—' }}</td><td class="text-end">{{ '%.0f'|format(r.humidity_pct) if r.humidity_pct is not none else '—' }}</td><td>{{ r.method }}</td><td>{{ label_badge(r.data_label) }}</td><td>{{ quality_badge(r.quality) }}{% if r.quality_note %}<div class="cell-sub">{{ r.quality_note }}</div>{% endif %}</td><td>{{ r.device_key or r.recorded_by or '—' }}</td></tr>
-    {% else %}<tr><td colspan="8" class="table-empty">No readings recorded yet. Enter one, or load the labelled synthetic demo set below.</td></tr>{% endfor %}
+    <div class="table-responsive table-scroll"><table class="table modern-table interior-table mb-0"><thead class="sticky-top"><tr><th>Local time</th><th>Zone</th><th class="text-end">°C</th><th class="text-end">%RH</th><th>Method</th><th>Quality</th><th>By / device</th></tr></thead><tbody>
+    {% for r in recent %}<tr><td>{{ r.local_time }}</td><td>{{ r.zone_code }}</td><td class="text-end">{{ '%.1f'|format(r.temperature_c) if r.temperature_c is not none else '—' }}</td><td class="text-end">{{ '%.0f'|format(r.humidity_pct) if r.humidity_pct is not none else '—' }}</td><td>{{ r.method }}</td><td>{{ quality_badge(r.quality) }}{% if r.quality_note %}<div class="cell-sub">{{ r.quality_note }}</div>{% endif %}</td><td>{{ r.device_key or r.recorded_by or '—' }}</td></tr>
+    {% else %}<tr><td colspan="7" class="table-empty">No readings recorded yet. Enter one, or load the labelled synthetic demo set below.</td></tr>{% endfor %}
     </tbody></table></div>
   </section></div>
 </div>
@@ -154,9 +152,9 @@
 <section class="card surface-card mb-3" id="sensors">
   {{ ui.panel('PHASE 3 · SENSOR INTEGRATION (SOFTWARE ONLY)', 'Sensors and zones', 'No hardware has been purchased, installed or tested. The device registry and API are ready for a future pilot.') }}
     {{ flash_here('sensors') }}
-  <div class="table-responsive"><table class="table modern-table interior-table mb-0"><thead><tr><th>Device</th><th>Zone</th><th>Description</th><th>Label</th><th>Status at {{ current.snapshot_time | clock }}</th></tr></thead><tbody>
-  {% for d in c.devices %}<tr><td><strong>{{ d.device.device_id }}</strong></td><td>{{ d.device.zone_code }}</td><td>{{ d.device.description or '—' }}</td><td>{{ label_badge(d.device.data_label) }}</td><td><span class="risk-badge {{ {'ok':'risk-healthy','attention':'risk-critical'}.get(d.status, 'risk-unknown') }}">{{ {'ok':'Reporting','attention':'Requires attention'}.get(d.status, 'Not yet active') }}</span><div class="cell-sub">{{ d.note }}</div></td></tr>
-  {% else %}<tr><td colspan="5" class="table-empty">No sensors registered. Manual entry is the Phase 1 method.</td></tr>{% endfor %}
+  <div class="table-responsive"><table class="table modern-table interior-table mb-0"><thead><tr><th>Device</th><th>Zone</th><th>Description</th><th>Status at {{ current.snapshot_time | clock }}</th></tr></thead><tbody>
+  {% for d in c.devices %}<tr><td><strong>{{ d.device.device_id }}</strong></td><td>{{ d.device.zone_code }}</td><td>{{ d.device.description or '—' }}</td><td><span class="risk-badge {{ {'ok':'risk-healthy','attention':'risk-critical'}.get(d.status, 'risk-unknown') }}">{{ {'ok':'Reporting','attention':'Requires attention'}.get(d.status, 'Not yet active') }}</span><div class="cell-sub">{{ d.note }}</div></td></tr>
+  {% else %}<tr><td colspan="4" class="table-empty">No sensors registered. Manual entry is the Phase 1 method.</td></tr>{% endfor %}
   </tbody></table></div>
   <div class="card-body interior-card-body border-top">
     <div class="row g-3">

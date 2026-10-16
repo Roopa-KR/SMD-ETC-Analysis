@@ -370,6 +370,9 @@ def test_environment_page_with_synthetic_data_shows_statuses_and_trends(client):
     assert 'SYNTHETIC demo readings are loaded' in html
     for text in ('Stale', 'Missing', 'Suspect', 'Invalid', 'Requires attention', 'env-temp-chart', 'env-rh-chart'):
         assert text in html, text
+    assert '<th>Label</th>' not in html
+    assert '<th>Source</th>' not in html
+    assert 'Series marked SYNTHETIC in the legend are demo data, not SMD conditions.' not in html
     data = json.loads(re.search(r'id="env-trend-data">(.*?)</script>', html, re.S).group(1))
     assert all(s['synthetic'] for s in data) and len({s['color'] for s in data}) == len(data)
     dashboard = client.get(f'/?snapshot={SNAP}').get_data(as_text=True)

@@ -11,6 +11,9 @@ sys.path.insert(0, ROOT)
 import tempfile  # noqa: E402
 _ENV_TMP = tempfile.mkdtemp(prefix='smd-env-tests-')
 os.environ['ENV_DATABASE_URL'] = 'sqlite:///' + os.path.join(_ENV_TMP, 'environment_test.db').replace('\\', '/')
+# Keep sensor-auth tests deterministic regardless of a developer's local .env.
+# Individual tests enable the API explicitly through the api_token fixture.
+os.environ['ENV_INGEST_TOKEN'] = ''
 WORKBOOK = os.path.join(ROOT, "INFO", "historical", "historical_33_trucks_reference.xlsx")
 
 

@@ -4,3 +4,12 @@ __pycache__/
 .pytest_cache/
 data/truck_etc.db
 data/environment.db
+
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/

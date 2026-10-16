@@ -31,7 +31,7 @@
 <div class="kpi-panel" aria-label="Environmental summary">
   {{ ui.metric('bi-thermometer-half', 'Zones with a current reading', with_reading ~ ' / ' ~ c.zones|length, 'Latest valid reading ≤ ' ~ cfg.ENV_STALE_MINUTES ~ ' min old', 'success' if with_reading == c.zones|length and c.zones else 'amber') }}
   {{ ui.metric('bi-exclamation-triangle', 'Needs attention', c.attention|length, 'Missing, stale, suspect, invalid or silent sensor', 'danger' if c.attention else 'success') }}
-  {{ ui.metric('bi-broadcast', 'Sensors reporting', sensors_ok ~ ' / ' ~ c.devices|length, 'Registered devices; API ' ~ ('enabled' if api_enabled else 'disabled'), 'primary') }}
+  {{ ui.metric('bi-broadcast', 'Sensors reporting', sensors_ok ~ ' / ' ~ c.devices|length, 'Registered environmental sensors', 'primary') }}
   {{ ui.metric('bi-calculator', 'Environment-adjusted ETC', 'Not available', 'No validated, approved method (Phase 4). Baseline ETC in use.', 'primary') }}
 </div>
 
@@ -120,7 +120,7 @@
   {{ ui.panel('PHASE 2 · EXPERIMENTAL', 'Conditions and productivity: association analysis', analysis.summary) }}
   <div class="card-body interior-card-body">
     <div class="row g-3">
-      <div class="col-lg-6">
+      <div class="col-12">
         <div class="card-kicker">EVIDENCE NEEDED BEFORE ANY CONCLUSION</div>
         <table class="table table-sm env-check-table"><thead><tr><th>Check</th><th>Now</th><th>Required</th><th></th></tr></thead><tbody>
         {% for ch in analysis.checks %}<tr><td>{{ ch.item }}</td><td>{{ ch.value }}</td><td>{{ ch.required }}</td><td>{% if ch.ok %}<span class="risk-badge risk-healthy">Met</span>{% else %}<span class="risk-badge risk-unknown">Not met</span>{% endif %}</td></tr>{% endfor %}
@@ -177,19 +177,6 @@
           {% if entry_key_required %}<div class="col-sm-4"><label class="form-label" for="zone-key">Entry key</label><input class="form-control" id="zone-key" name="entry_key" type="password" autocomplete="off"></div>{% endif %}
           <div class="col-12"><button class="btn btn-soft-primary" type="submit">Add zone</button></div>
         </form>
-      </div>
-      <div class="col-lg-6">
-        <div class="card-kicker">SENSOR API</div>
-        {% if api_enabled %}<p><span class="risk-badge risk-healthy">Enabled</span> Bearer token set in <code>.env</code>.</p>{% else %}<p><span class="risk-badge risk-unknown">Disabled</span> Set <code>ENV_INGEST_TOKEN</code> in <code>.env</code> to accept sensor readings.</p>{% endif %}
-        <pre class="env-code">POST /api/environment/readings
-Authorization: Bearer &lt;ENV_INGEST_TOKEN&gt;
-Content-Type: application/json
-
-{"device_id": "&lt;registered id&gt;",
- "temperature_c": 26.4,
- "humidity_pct": 58,
- "reading_time": "2026-09-08T18:20:00-04:00"}</pre>
-        <p class="helper-text mb-0">One object or a list of up to 500. Unregistered devices and times without a UTC offset are rejected; out-of-range sensor values are stored as <em>invalid</em> so the device shows as needing attention; repeats are reported as duplicates. A device silent for more than {{ cfg.ENV_DEVICE_SILENT_MINUTES }} min requires attention. Read-only status: <code>GET /api/environment/zones?snapshot={{ current.snapshot_no }}</code>.</p>
       </div>
     </div>
   </div>

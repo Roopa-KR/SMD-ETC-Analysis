@@ -821,7 +821,7 @@ def create_app() -> Flask:
                                productivity=analysis.get('productivity_table', []),
                                recent=recent, notes=env_store.site_notes(), zones=env_store.zones(),
                                wt_names=src.worktype_names, tz=env.timezone_status(),
-                               api_enabled=bool(config.ENV_INGEST_TOKEN), entry_key_required=bool(config.ENV_ENTRY_KEY),
+                               entry_key_required=bool(config.ENV_ENTRY_KEY),
                                default_time=current.snapshot_time.strftime('%Y-%m-%dT%H:%M'),
                                csrf=session['csrf_token'], cfg=config)
 

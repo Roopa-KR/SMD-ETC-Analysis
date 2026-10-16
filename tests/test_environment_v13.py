@@ -358,9 +358,11 @@ def test_environment_page_renders_empty_and_states_context_only(client):
     html = client.get(f'/environment?snapshot={SNAP}').get_data(as_text=True)
     for text in ('Context only.', 'Environment-adjusted ETC', 'Not available', 'No reading', 'Not enough readings for a trend',
                  'Insufficient evidence', 'No hardware has been purchased', 'WBGT', 'not mandatory',
-                 'Do not ask operators to keep working in unsafe heat', 'Not yet documented by the client',
-                 'API</div>', 'Disabled'):
+                 'Do not ask operators to keep working in unsafe heat', 'Not yet documented by the client'):
         assert text in html, text
+    assert 'SENSOR API' not in html
+    assert 'POST /api/environment/readings' not in html
+    assert 'ENV_INGEST_TOKEN' not in html
     assert 'env-temp-chart' not in html                                # no empty chart
 
 

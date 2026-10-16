@@ -377,6 +377,7 @@ def test_environment_page_with_synthetic_data_shows_statuses_and_trends(client):
     assert all(s['synthetic'] for s in data) and len({s['color'] for s in data}) == len(data)
     dashboard = client.get(f'/?snapshot={SNAP}').get_data(as_text=True)
     assert 'Work-area conditions' in dashboard and 'Environment-adjusted ETC: not available' in dashboard
+    assert 'data-label-synthetic' not in dashboard
     truck = client.get(f'/truck/SH0908-1034?snapshot={SNAP}').get_data(as_text=True)
     assert 'Area conditions' in truck and '(current · SYNTHETIC)' in truck
 

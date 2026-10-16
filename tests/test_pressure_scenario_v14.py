@@ -64,6 +64,23 @@ def test_two_trucks_are_at_risk_at_1830_from_the_calculation():
         assert t['conservative_ready'] == b['conservative_ready']
 
 
+def test_allocation_to_one_at_risk_truck_does_not_improve_the_other():
+    baseline = state(10)
+    allocation = move('dclements', 2, 10)
+    allocation['shipment'] = FIRST
+    changed = state(10, moves=[allocation])
+
+    assert truck(baseline, FIRST)['status'] == AT_RISK
+    assert truck(baseline, SECOND)['status'] == AT_RISK
+    assert truck(changed, FIRST)['status'] == 'ON TIME'
+    assert truck(changed, SECOND)['status'] == AT_RISK
+
+    first_row = next(r for r in changed['rows'] if r['shipment'] == FIRST and r['worktype'] == 2)
+    second_row = next(r for r in changed['rows'] if r['shipment'] == SECOND and r['worktype'] == 2)
+    assert first_row['resources'] == second_row['resources'] + 1
+    assert first_row['low_rate'] > second_row['low_rate']
+
+
 def test_nothing_is_hardcoded_the_same_trucks_are_on_time_with_more_staff_or_time():
     relaxed = state(10, loading={FIRST: 20, SECOND: 20})        # 10 min more picking time each
     assert truck(relaxed, FIRST)['status'] == 'ON TIME' and truck(relaxed, SECOND)['status'] == 'ON TIME'

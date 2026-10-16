@@ -1,0 +1,26 @@
+{% extends 'mfg/base.html' %}{% block title %}Work order traceability{% endblock %}{% block eyebrow %}WORK ORDERS / TRACEABILITY{% endblock %}
+{% block content %}
+<div class="page-heading"><div><div class="eyebrow">WORK ORDER CONTROL · UNIT-LEVEL TRACEABILITY</div><h1>Work orders &amp; stages</h1><p>Production quantities, stage movements, CTQ checks and recorded labor events for each separate tank, cover or accessory order.</p></div><span class="source-pin big">SOURCE ROUTES + DEMO UNIT FIXTURES</span></div>
+<div class="constraint blue-bg">Stage arrival/completion quantities are inferred from the synthetic snapshot; they do <strong>not</strong> certify historic inspections for stages passed before this demonstration. No component-to-tank kitting/join is assumed.</div>
+<div class="wo-layout">
+<section class="panel"><div class="panel-head"><div><h2>1 · Select work order</h2><p>Each component family is independently tracked.</p></div></div>
+{% for wo in wo_list %}<a class="wo-choice {% if selected_wo==wo.id %}active{% endif %}" href="{{url_for('work_orders',wo=wo.id)}}"><strong>{{wo.id}}</strong><small>{{wo.type}} · {{wo.quantity}} physical units</small><span>{{wo.complete}} complete · {{wo.scrapped}} scrapped</span></a>{% else %}<p class="muted">No work orders exist.</p>{% endfor %}
+</section>
+<section class="panel"><div class="panel-head"><div><h2>2 · Production stages</h2><p>{{selected_order.id if selected_order else 'Select a WO'}}</p></div></div>
+{% if selected_order %}
+<div class="shop-scroll">{% for stage in selected_order.stages %}
+<a class="wo-stage {% if selected_wc==stage.wc %}active{% endif %}" href="{{url_for('work_orders',wo=selected_wo,wc=stage.wc,unit=selected_unit)}}"><strong>{{stage.wc}} · {{center_map[stage.wc].name}}</strong><span>{{stage.arrived}} arrived · {{stage.moved_past}} moved past<br><small>{{stage.ctq_verified}} full checklists saved · {{stage.checks}} checks per unit</small></span></a>
+{% endfor %}</div>
+<div class="divider-soft"></div><label for="selected-unit"><strong>Inspect a physical unit</strong></label><form action="{{url_for('work_orders')}}" method="get" class="shop-form"><input type="hidden" name="wo" value="{{selected_wo}}"><input type="hidden" name="wc" value="{{selected_wc}}"><select id="selected-unit" name="unit" onchange="this.form.submit()">{% for u in selected_order.units %}<option value="{{u.id}}" {% if selected_unit==u.id %}selected{% endif %}>{{u.id}} · {{u.status}} · {{u.wc}}</option>{% endfor %}</select><button type="submit" class="btn btn-outline">View</button></form>
+{% endif %}</section>
+<section class="panel"><div class="panel-head"><div><h2>3 · Unit history</h2><p>{{selected_unit}} · {{selected_wc}}</p></div></div>
+{% if selected_unit %}
+<div class="shop-actions"><a class="btn btn-outline" href="{{url_for('unit_detail',unit_id=selected_unit)}}">Unit passport ↗</a><a class="btn btn-outline" href="{{url_for('operator_console',wc=selected_wc,unit=selected_unit)}}">Operator view ↗</a></div>
+<h3>CTQ requirements at {{selected_wc}}</h3><div class="shop-scroll">{% for check in stage_checks %}<div class="wo-ctq"><strong>{{check.check_id}}</strong><span>{{check.requirement}}<br><small>{{check.recorded.verdict if check.recorded else 'No saved result'}} · {{check.answer_type}}</small></span><a class="text-link" href="{{url_for('inspection_form',unit_id=selected_unit,check_id=check.check_id)}}">Record</a></div>{% else %}<p class="muted">No CTQs mapped here.</p>{% endfor %}</div>
+<h3>Task sessions</h3><div class="shop-scroll">{% for t in operation_tasks if t.unit_id==selected_unit %}<div class="shop-small-row"><strong>#{{t.task_id}} · {{t.worker_id}}</strong><span>{{t.status}} · {{t.created_at[:19]}} UTC</span></div>{% else %}<p class="muted">No session recorded at this work center.</p>{% endfor %}</div>
+<h3>Receiving inspection</h3><div class="shop-scroll">{% for r in incoming %}<div class="shop-small-row"><strong>{{r.from_wc}} → {{r.to_wc}}</strong><span>{{r.outcome}} · {{r.recorded_at[:19]}}<br><small>{{r.note or 'No remark'}}</small></span></div>{% else %}<p class="muted">No incoming inspection recorded.</p>{% endfor %}</div>
+<h3>Open defects</h3><div class="shop-scroll">{% for d in defects %}<div class="shop-small-row"><strong>{{d.status}} · {{d.wc}}</strong><span>{{d.detail}}<br><small>No cause or responsibility confirmed</small></span></div>{% else %}<p class="muted">No open defects logged.</p>{% endfor %}</div>
+<h3>Inspection audit</h3><div class="shop-scroll">{% for a in audit %}<div class="shop-small-row"><strong>{{a.check_id}} · {{a.verdict}}</strong><span>{{a.recorded_at}}<br><small>{{a.inspector}} · {{a.value}}</small></span></div>{% else %}<p class="muted">No results recorded for the selected work-center checks.</p>{% endfor %}</div>
+{% endif %}</section>
+</div>
+{% endblock %}

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#16253c"><title>{% block title %}Production overview{% endblock %} · GiNi Flow & Recovery</title>
+<link href="{{ url_for('static',filename='css/manufacturing.css') }}" rel="stylesheet">
+</head><body>
+<a href="#main-content" class="skip">Skip to content</a>
+<div class="app-shell">
+<aside class="sidebar" id="sideNav" aria-label="Primary navigation">
+ <a class="logo" href="{{url_for('dashboard')}}"><span class="logo-mark">G<span>·</span></span><span><strong>GiNi</strong><small>PRODUCTION INTELLIGENCE</small></span></a>
+ <div class="side-scroll">
+ <div class="nav-section">SHIFT OPERATIONS</div>
+ <nav>
+  <a class="nav-link {% if request.endpoint=='dashboard' %}selected{% endif %}" href="{{url_for('dashboard')}}"><span class="nav-icon">▦</span>Shift overview</a>
+  <a class="nav-link {% if request.endpoint in ('work_centers','work_center_detail') %}selected{% endif %}" href="{{url_for('work_centers')}}"><span class="nav-icon">▥</span>Work centers <span class="nav-small">8</span></a>
+  <a class="nav-link {% if request.endpoint in ('units','unit_detail') %}selected{% endif %}" href="{{url_for('units')}}"><span class="nav-icon">⬡</span>Tanks & components</a>
+  <a class="nav-link {% if request.endpoint in ('workers','worker_detail') %}selected{% endif %}" href="{{url_for('workers')}}"><span class="nav-icon">♙</span>Workforce</a>
+ </nav>
+ <div class="nav-section">SHOP-FLOOR EXECUTION</div><nav>
+  <a class="nav-link {% if request.endpoint in ('operator_console','start_shop_task','shop_task_transition','shop_report_issue','incoming_shop_inspection') %}selected{% endif %}" href="{{url_for('operator_console')}}"><span class="nav-icon">◷</span>Operator console</a>
+  <a class="nav-link {% if request.endpoint=='work_orders' %}selected{% endif %}" href="{{url_for('work_orders')}}"><span class="nav-icon">▤</span>Work orders</a>
+  <a class="nav-link {% if request.endpoint=='lms_dashboard' %}selected{% endif %}" href="{{url_for('lms_dashboard')}}"><span class="nav-icon">◫</span>LMS & points</a>
+ </nav>
+ <div class="nav-section">QUALITY & DECISIONS</div><nav>
+  <a class="nav-link {% if request.endpoint in ('quality','inspection_form') %}selected{% endif %}" href="{{url_for('quality')}}"><span class="nav-icon">☑</span>CTQ inspections</a>
+  <a class="nav-link {% if request.endpoint=='recovery' %}selected{% endif %}" href="{{url_for('recovery')}}"><span class="nav-icon">↗</span>Recovery planner <span class="attention-dot"></span></a>
+ </nav>
+ <div class="nav-section">DEMO SCENARIO</div>
+ <form action="{{url_for('dashboard')}}" method="get" class="side-form">
+  <label for="sideScenario">Production scenario</label>
+  <select name="scenario" id="sideScenario" onchange="this.form.submit()">
+  {% for key in scenario_order %}<option value="{{key}}" {% if scene.id==key %}selected{% endif %}>{{scenarios[key].name}}</option>{% endfor %}
+  </select>
+  <label for="sideTime">Information known at</label>
+  <select name="asof" id="sideTime" onchange="this.form.submit()">
+  {% for t in ['06:00','06:05','08:30','09:55','10:45','10:55','11:40','14:30'] %}<option {% if asof==t %}selected{% endif %}>{{t}}</option>{% endfor %}
+  </select>
+ </form>
+ </div>
+ <div class="side-bottom"><span class="demo-dot"></span><div><strong>Concept demonstrator</strong><small>Fictional people, tanks and outcomes</small></div></div>
+</aside>
+<div class="mobile-shade" id="mobileShade" hidden></div>
+<div class="main-area"><header class="topbar"><button class="menu-button" id="mobileMenu" aria-label="Open navigation">☰</button>
+ <div class="breadcrumb">MANUFACTURING <span>/</span> <strong>{% block eyebrow %}SHIFT OVERVIEW{% endblock %}</strong></div>
+ <div class="top-controls"><span class="live-tag"><i></i> REPLAY MODE</span><span class="top-time">◷ {{asof}} · Line A</span><span class="avatar">M</span></div>
+</header>
+<main id="main-content" class="main-content">
+ <div class="notice"><span>✦</span> {{demo_banner}} <span class="notice-sub">· WC1–WC4 tank route provisional · Covers/accessories separate</span></div>
+ {% with messages=get_flashed_messages(with_categories=true) %}{% if messages %}<div class="flash-stack">{% for category,msg in messages %}<div role="status" class="flash {{category}}">{{msg}}</div>{% endfor %}</div>{% endif %}{% endwith %}
+ {% block content %}{% endblock %}
+ <footer class="footer">GiNi Production Flow & Recovery · Internal concept demonstrator · Illustrative data, not endorsed by Siemens Energy <span>Source: CTQ guide + October 2026 concept reference</span></footer>
+</main></div></div>
+<script src="{{url_for('static',filename='js/manufacturing.js')}}" defer></script>
+{% block scripts %}{% endblock %}
+</body></html>

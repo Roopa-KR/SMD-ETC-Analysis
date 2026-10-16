@@ -25,7 +25,8 @@ Colour bands (never green unless the buffer is kept):
 from __future__ import annotations
 
 from calculations.bands import BANDS, COLORS, band, clock, iso  # noqa: F401 (re-exported)
-from calculations.supervisor import add_temporaries, preview_state, recommend_minimum, truck_projection
+from calculations.supervisor import (add_temporaries, preview_state, recommend_minimum,
+                                     shipment_rates, truck_projection)
 from calculations.temporary import minimum_mix, temps_needed
 from calculations.truck import le
 
@@ -269,10 +270,13 @@ def ready_time_comparison(src, original_state, current_state, shipment, snapshot
                            tick_note='original operators')]
 
     confirmed = [m for m in current_state['applied']
-                 if int(m['dest']) in open_wts or int(m['source']) in open_wts]
-    confirmed_temps = [t for t in current_state.get('temporaries_applied', []) if int(t['dest']) in open_wts]
+                 if ((int(m['dest']) in open_wts and m.get('shipment') in (None, shipment))
+                     or int(m['source']) in open_wts)]
+    confirmed_temps = [t for t in current_state.get('temporaries_applied', [])
+                       if int(t['dest']) in open_wts and t.get('shipment') in (None, shipment)]
     if confirmed or confirmed_temps:
-        into = [m['operator'] for m in confirmed if int(m['dest']) in open_wts]
+        into = [m['operator'] for m in confirmed
+                if int(m['dest']) in open_wts and m.get('shipment') in (None, shipment)]
         out_of = [m['operator'] for m in confirmed if int(m['source']) in open_wts and int(m['dest']) not in open_wts]
         temp_total = sum(int(t['count']) for t in confirmed_temps)
         parts = []
@@ -283,7 +287,7 @@ def ready_time_comparison(src, original_state, current_state, shipment, snapshot
         if temp_total:
             parts.append(f"+{_count(temp_total, 'temporary operator')}")
         scenarios.append(_scenario('confirmed', 'After allocation (confirmed)', ' · '.join(parts),
-                                   current_state, current_state['rates'], shipment,
+                                   current_state, shipment_rates(current_state, shipment), shipment,
                                    operators=into, confirmed=True, reallocated=len(into), temporary=temp_total,
                                    tick_note=f"confirmed · +{len(into)} reallocated"
                                              + (f" +{temp_total} temporary" if temp_total else '')))

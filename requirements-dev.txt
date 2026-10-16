@@ -1,0 +1,2 @@
+-r requirements-manufacturing.txt
+pytest>=8,<10

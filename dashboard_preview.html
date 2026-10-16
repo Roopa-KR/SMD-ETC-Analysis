@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#16253c"><title>Shift overview · GiNi Flow & Recovery</title>
+<link href="file:///mnt/data/GiNi_Manufacturing_App/static/css/manufacturing.css" rel="stylesheet">
+</head><body>
+<a href="#main-content" class="skip">Skip to content</a>
+<div class="app-shell">
+<aside class="sidebar" id="sideNav" aria-label="Primary navigation">
+ <a class="logo" href="#dashboard"><span class="logo-mark">G<span>·</span></span><span><strong>GiNi</strong><small>PRODUCTION INTELLIGENCE</small></span></a>
+ <div class="side-scroll">
+ <div class="nav-section">SHIFT OPERATIONS</div>
+ <nav>
+  <a class="nav-link selected" href="#dashboard"><span class="nav-icon">▦</span>Shift overview</a>
+  <a class="nav-link " href="#work_centers"><span class="nav-icon">▥</span>Work centers <span class="nav-small">8</span></a>
+  <a class="nav-link " href="#units"><span class="nav-icon">⬡</span>Tanks & components</a>
+  <a class="nav-link " href="#workers"><span class="nav-icon">♙</span>Workforce</a>
+ </nav>
+ <div class="nav-section">QUALITY & DECISIONS</div><nav>
+  <a class="nav-link " href="#quality"><span class="nav-icon">☑</span>CTQ inspections</a>
+  <a class="nav-link " href="#recovery"><span class="nav-icon">↗</span>Recovery planner <span class="attention-dot"></span></a>
+ </nav>
+ <div class="nav-section">DEMO SCENARIO</div>
+ <form action="#dashboard" method="get" class="side-form">
+  <label for="sideScenario">Production scenario</label>
+  <select name="scenario" id="sideScenario" onchange="this.form.submit()">
+  <option value="normal" >Normal shift</option><option value="absence" >WC1 absence</option><option value="scrap" >First-stage scrap</option><option value="combined" selected>Combined disruption</option><option value="replacement" >Replacement only</option><option value="relief" >Replacement + relief</option><option value="recovered" >Approved recovery</option><option value="actual" >Illustrative actual replay</option>
+  </select>
+  <label for="sideTime">Information known at</label>
+  <select name="asof" id="sideTime" onchange="this.form.submit()">
+  <option >06:00</option><option >06:05</option><option >08:30</option><option >09:55</option><option >10:45</option><option selected>10:55</option><option >11:40</option><option >14:30</option>
+  </select>
+ </form>
+ </div>
+ <div class="side-bottom"><span class="demo-dot"></span><div><strong>Concept demonstrator</strong><small>Fictional people, tanks and outcomes</small></div></div>
+</aside>
+<div class="mobile-shade" id="mobileShade" hidden></div>
+<div class="main-area"><header class="topbar"><button class="menu-button" id="mobileMenu" aria-label="Open navigation">☰</button>
+ <div class="breadcrumb">MANUFACTURING <span>/</span> <strong>SHIFT OVERVIEW</strong></div>
+ <div class="top-controls"><span class="live-tag"><i></i> REPLAY MODE</span><span class="top-time">◷ 10:55 · Line A</span><span class="avatar">M</span></div>
+</header>
+<main id="main-content" class="main-content">
+ <div class="notice"><span>✦</span> SYNTHETIC DEMONSTRATION · NO LIVE FACTORY DATA <span class="notice-sub">· WC1–WC4 tank route provisional · Covers/accessories separate</span></div>
+ 
+ 
+<div class="page-heading"><div><div class="eyebrow">16 OCTOBER 2026 <span class="dot-sep">·</span> SHIFT 06:00–14:30</div><h1>Tank Performance & production flow</h1><p>See what's moving, what could slip, and which recovery decisions are possible.</p></div>
+ <a href="#recovery" class="btn btn-primary">↗ Open recovery planner</a></div>
+<div class="section-title"><h2>ORD-1042 <span class="muted regular">· 10 good tanks due 14:30</span></h2><span class="tiny-caption">Information known as of 10:55 · Demo scenario</span></div>
+<div class="kpi-grid">
+ <div class="kpi-card"><div class="kpi-label">Total Tanks <span>◎</span></div><div class="kpi-value">10</div><div class="kpi-foot">physical IDs in demo · 10 due 14:30</div></div>
+ <div class="kpi-card"><div class="kpi-label">Route complete <span>✓</span></div><div class="kpi-value teal-text">6</div><div class="kpi-foot">counted only after WC4</div></div>
+ <div class="kpi-card kpi-risk"><div class="kpi-label">On-Time Tanks · projected <span>◷</span></div><div class="kpi-value amber-text">9 <small>/ 10</small></div><div class="kpi-foot">Short by 1 · 13:55 last-unit estimate</div></div>
+ <div class="kpi-card"><div class="kpi-label">At-Risk Tanks · projected <span>⊘</span></div><div class="kpi-value red-text">1</div><div class="kpi-foot">Forecast shortfall to order target</div></div>
+ <div class="kpi-card"><div class="kpi-label">CTQ results recorded <span>!</span></div><div class="kpi-value">0</div><div class="kpi-foot">0 pass · 0 fail · 0 review</div></div>
+</div>
+<p class="hint" style="margin:0 0 18px">Tank Performance shows <strong>scenario-projected on-time and at-risk quantities</strong>, not observed individual tank punctuality. One scrapped tank affects order fulfilment; an approved new replacement has a distinct physical ID. CTQ counts are recorded demo results only.</p>
+<div class="content-grid"><section class="panel span-main"><div class="panel-head"><div><h2>Production flow</h2><p>Where the next constraint moves along the tank route</p></div><a class="text-link" href="#work_centers">All work centers ↗</a></div>
+ <div class="flow-diagram">
+  <a href="#work_center_detail" class="flow-step"><div class="step-top"><strong>WC1</strong><span class="status-pill pill-amber">Short-staffed</span></div><div class="step-name">Pre-Assembly</div><div class="step-metrics"><span>4 / 5 crew</span><span>1 queued</span></div><div class="mini-track"><div style="width:80%" class="bar-amber"></div></div></a><span class="flow-arrow">➜</span><a href="#work_center_detail" class="flow-step"><div class="step-top"><strong>WC2</strong><span class="status-pill pill-amber">Waiting for input</span></div><div class="step-name">Assembly</div><div class="step-metrics"><span>4 / 4 crew</span><span>0 queued</span></div><div class="mini-track"><div style="width:100%" class="bar-amber"></div></div></a><span class="flow-arrow">➜</span><a href="#work_center_detail" class="flow-step"><div class="step-top"><strong>WC3</strong><span class="status-pill pill-teal">On schedule</span></div><div class="step-name">Painting + cure</div><div class="step-metrics"><span>2 / 2 crew</span><span>1 queued</span></div><div class="mini-track"><div style="width:100%" class=""></div></div></a><span class="flow-arrow">➜</span><a href="#work_center_detail" class="flow-step"><div class="step-top"><strong>WC4</strong><span class="status-pill pill-teal">On schedule</span></div><div class="step-name">Markings</div><div class="step-metrics"><span>2 / 2 crew</span><span>0 queued</span></div><div class="mini-track"><div style="width:100%" class=""></div></div></a>
+ </div>
+ <div class="flow-note"><span class="inline-info">ⓘ</span> <strong>The limiting constraint is upstream:</strong> WC2 has its full crew but can run out of approved tanks. Work-in-progress buffers delay the impact, not eliminate it.</div>
+ <div class="panel-subhead"><h3>Work centers by stream</h3><span class="tiny-caption">Select any center to drill down</span></div>
+ <div class="workgrid"><a class="work-tile" href="#work_center_detail"><div class="tile-id">WC1 <span class="stream-tag">Tank</span></div><strong>Pre-Assembly</strong><div class="tile-bottom"><span>4 / 5 available</span><span class="tile-arrow">↗</span></div></a><a class="work-tile" href="#work_center_detail"><div class="tile-id">WC2 <span class="stream-tag">Tank</span></div><strong>Assembly</strong><div class="tile-bottom"><span>4 / 4 available</span><span class="tile-arrow">↗</span></div></a><a class="work-tile" href="#work_center_detail"><div class="tile-id">WC3 <span class="stream-tag">Tank</span></div><strong>Painting + cure</strong><div class="tile-bottom"><span>2 / 2 available</span><span class="tile-arrow">↗</span></div></a><a class="work-tile" href="#work_center_detail"><div class="tile-id">WC4 <span class="stream-tag">Tank</span></div><strong>Markings</strong><div class="tile-bottom"><span>2 / 2 available</span><span class="tile-arrow">↗</span></div></a><a class="work-tile" href="#work_center_detail"><div class="tile-id">WC5 <span class="stream-tag">Cover</span></div><strong>Cover assembly</strong><div class="tile-bottom"><span>3 / 3 available</span><span class="tile-arrow">↗</span></div></a><a class="work-tile" href="#work_center_detail"><div class="tile-id">WC6 <span class="stream-tag">Cover</span></div><strong>Cover painting</strong><div class="tile-bottom"><span>2 / 2 available</span><span class="tile-arrow">↗</span></div></a><a class="work-tile" href="#work_center_detail"><div class="tile-id">WC7 <span class="stream-tag">Accessories</span></div><strong>Accessory painting</strong><div class="tile-bottom"><span>2 / 2 available</span><span class="tile-arrow">↗</span></div></a><a class="work-tile" href="#work_center_detail"><div class="tile-id">WC8 <span class="stream-tag">Accessories</span></div><strong>Accessory markings</strong><div class="tile-bottom"><span>2 / 2 available</span><span class="tile-arrow">↗</span></div></a></div>
+ </section>
+ <section class="panel alert-panel"><div class="panel-head"><div><h2>Needs attention</h2><p>Decision-focused alerts</p></div><span class="alert-total">3</span></div>
+ <div class="alert-list"><a class="alert-item red" href="#recovery"><span class="alert-symbol">!</span><span><small>10:48 · LINE A</small><strong>ORD-1042 deadline at risk</strong><em>Projected 9 of 10 good tanks by 14:30</em></span><b>↗</b></a><a class="alert-item amber" href="#work_center_detail"><span class="alert-symbol">△</span><span><small>09:55 · LINE A</small><strong>WC2 waiting for approved input</strong><em>Assembly is fully staffed.</em></span><b>↗</b></a><a class="alert-item red" href="#unit_detail"><span class="alert-symbol">!</span><span><small>10:48 · LINE A</small><strong>TANK-0018 scrapped permanently</strong><em>First-stage failure</em></span><b>↗</b></a></div>
+ <div class="alert-foot">Acknowledging an alert is not the same as resolving its cause.</div></section></div>
+<div class="content-grid bottom-grid"><section class="panel"><div class="panel-head"><div><h2>Order fulfilment</h2><p>Each tank counted once, only at route completion</p></div><a class="text-link" href="#units">Tank passport ↗</a></div>
+ <div class="stacked-labels"><span>Completed: 6</span><span>In progress / queued: 3</span><span>Scrapped: 1</span></div><div class="stacked-bar"><i class="filled" style="width:60%"></i><i class="progressing" style="width:30%"></i><i class="scrapped" style="width:10%"></i></div>
+ <div class="comparison-row"><span><small>Before action forecast</small><strong>9 / 10</strong></span><span class="arrow-large">→</span><span><small>Best feasible recovery</small><strong class="teal-text">10 / 10 <em>14:21</em></strong></span></div>
+ <p class="hint">The comparison is a reproducible reference scenario, not a live factory calculation. WC1 is short-staffed and TANK-0018 is scrapped. The order is short one good tank.</p></section>
+ <section class="panel"><div class="panel-head"><div><h2>Latest known events</h2><p>Event time and system-recorded time remain distinct</p></div></div><div class="event-list"><div class="event-line"><span class="event-dot proposed"></span><span class="event-clock">10:55</span><div><strong>Replacement feasibility assessed</strong><small>One spare kit, lot ML-0415. The unit has not been manufactured.</small></div></div><div class="event-line"><span class="event-dot scrap"></span><span class="event-clock">10:48</span><div><strong>TANK-0018 failed first-stage gate</strong><small>Illustrative shell length 1,207 mm vs demo limit 1,195–1,205 mm; SCRAP, permanent.</small></div></div><div class="event-line"><span class="event-dot waiting"></span><span class="event-clock">09:55</span><div><strong>WC2 queue depleted</strong><small>Assembly crew available; upstream approved tank supply is limiting.</small></div></div><div class="event-line"><span class="event-dot work"></span><span class="event-clock">09:20</span><div><strong>WC1 pre-assembly started</strong><small>Crew Sana, Dev, Meera, Kiran</small></div></div></div><div class="low-note">A 10:45 replay cannot know an inspection entered at 10:48.</div></section></div>
+
+ <footer class="footer">GiNi Production Flow & Recovery · Internal concept demonstrator · Illustrative data, not endorsed by Siemens Energy <span>Source: CTQ guide + October 2026 concept reference</span></footer>
+</main></div></div>
+<script src="file:///mnt/data/GiNi_Manufacturing_App/static/js/manufacturing.js" defer></script>
+
+</body></html>

@@ -1,0 +1,1951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Siemens Energy - Production Control & LMS Platform</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Chart.js for LMS Dashboard -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        siemens: {
+                            teal: '#00bed6',
+                            dark: '#005960',
+                            navy: '#0f172a',
+                            slate: '#1e293b',
+                            accent: '#00e5ff',
+                            warning: '#f59e0b',
+                            danger: '#ef4444',
+                            success: '#10b981'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0b1329; color: #f8fafc; }
+        .tab-btn.active { border-color: #00bed6; color: #00bed6; background-color: rgba(0, 190, 214, 0.15); }
+        .view-btn.active { background-color: #00bed6; color: #0f172a; font-weight: 700; }
+        .touch-card:active { transform: scale(0.98); }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #1e293b; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #00bed6; border-radius: 4px; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between overflow-x-hidden">
+
+    <!-- TOP BRAND HEADER -->
+    <header class="bg-siemens-navy border-b border-slate-800 px-4 py-3 sticky top-0 z-50 shadow-md">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-siemens-teal text-slate-950 font-black px-3 py-1.5 rounded text-lg tracking-wider">
+                    SIEMENS ENERGY
+                </div>
+                <div class="h-6 w-px bg-slate-700 hidden sm:block"></div>
+                <span class="text-xs sm:text-sm font-medium text-slate-300 hidden sm:inline">Integrated Time Control, Quality & LMS Platform</span>
+            </div>
+            
+            <!-- Global Mode Switcher -->
+            <div class="flex items-center bg-slate-900 border border-slate-700 p-1 rounded-xl gap-1">
+                <button onclick="switchMainView('tablet')" id="mode-btn-tablet" class="view-btn active px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 transition">
+                    <i class="fa-solid fa-tablet-screen-button text-sm"></i> <span>Operator Mode (Booth H-03)</span>
+                </button>
+                <button onclick="switchMainView('lms')" id="mode-btn-lms" class="view-btn px-3 py-1.5 rounded-lg text-xs text-slate-300 hover:text-white flex items-center gap-2 transition">
+                    <i class="fa-solid fa-chart-line text-sm text-siemens-teal"></i> <span>LMS Supervision Dashboard</span>
+                </button>
+                <button onclick="switchMainView('orders')" id="mode-btn-orders" class="view-btn px-3 py-1.5 rounded-lg text-xs text-slate-300 hover:text-white flex items-center gap-2 transition">
+                    <i class="fa-solid fa-list-check text-sm text-siemens-teal"></i> <span>WO Control & Traceability (Web View)</span>
+                </button>
+            </div>
+
+            <!-- Global Status Badge -->
+            <div class="flex items-center gap-2">
+                <button onclick="resetFlow()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs px-3 py-1.5 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-rotate"></i> Reset
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- VIEW 1: OPERATOR TABLET SIMULATOR (STEPS 1 TO 6) -->
+    <div id="view-tablet-container" class="flex-1 flex flex-col">
+        <!-- STEP PROGRESS NAVIGATOR -->
+        <section class="bg-slate-900 border-b border-slate-800 py-3 px-4">
+            <div class="max-w-7xl mx-auto overflow-x-auto custom-scrollbar pb-1">
+                <div class="flex items-center justify-between min-w-[750px] gap-2">
+                    <!-- Step Buttons -->
+                    <button onclick="goToStep(1)" id="step-nav-1" class="step-nav flex-1 flex flex-col items-center p-2 rounded-lg border border-siemens-teal bg-siemens-teal/10 text-siemens-teal font-semibold text-xs transition">
+                        <span class="text-base mb-1"><i class="fa-solid fa-door-open"></i> 1</span>
+                        <span>Process</span>
+                    </button>
+                    <div class="w-4 h-0.5 bg-slate-800"></div>
+                    <button onclick="goToStep(2)" id="step-nav-2" class="step-nav flex-1 flex flex-col items-center p-2 rounded-lg border border-slate-800 text-slate-400 text-xs hover:border-slate-700 transition">
+                        <span class="text-base mb-1"><i class="fa-solid fa-id-card"></i> 2</span>
+                        <span>Operator & WO</span>
+                    </button>
+                    <div class="w-4 h-0.5 bg-slate-800"></div>
+                    <button onclick="goToStep(3)" id="step-nav-3" class="step-nav flex-1 flex flex-col items-center p-2 rounded-lg border border-slate-800 text-slate-400 text-xs hover:border-slate-700 transition">
+                        <span class="text-base mb-1"><i class="fa-solid fa-stopwatch"></i> 3</span>
+                        <span>Live Tracking</span>
+                    </button>
+                    <div class="w-4 h-0.5 bg-slate-800"></div>
+                    <button onclick="goToStep(4)" id="step-nav-4" class="step-nav flex-1 flex flex-col items-center p-2 rounded-lg border border-slate-800 text-slate-400 text-xs hover:border-slate-700 transition">
+                        <span class="text-base mb-1"><i class="fa-solid fa-camera"></i> 4</span>
+                        <span>Self-Check</span>
+                    </button>
+                    <div class="w-4 h-0.5 bg-slate-800"></div>
+                    <button onclick="goToStep(5)" id="step-nav-5" class="step-nav flex-1 flex flex-col items-center p-2 rounded-lg border border-slate-800 text-slate-400 text-xs hover:border-slate-700 transition">
+                        <span class="text-base mb-1"><i class="fa-solid fa-magnifying-glass"></i> 5</span>
+                        <span>Next Step</span>
+                    </button>
+                    <div class="w-4 h-0.5 bg-slate-800"></div>
+                    <button onclick="goToStep(6)" id="step-nav-6" class="step-nav flex-1 flex flex-col items-center p-2 rounded-lg border border-slate-800 text-slate-400 text-xs hover:border-slate-700 transition">
+                        <span class="text-base mb-1"><i class="fa-solid fa-award"></i> 6</span>
+                        <span>Rework & Points</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- MAIN TABLET SCREEN SIMULATOR -->
+        <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 flex flex-col">
+            <!-- TABLET CONTAINER FRAME -->
+            <div class="bg-slate-900 border-4 border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex-1 flex flex-col min-h-[600px]">
+
+                <!-- Tablet Screen Header / Context Bar -->
+                <div class="bg-slate-950 px-6 py-3 border-b border-slate-800 flex items-center justify-between text-xs text-slate-400">
+                    <div class="flex items-center gap-3">
+                        <span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded flex items-center gap-1.5 font-mono">
+                            <i class="fa-solid fa-wifi"></i> Online - Tablet H-03
+                        </span>
+                        <span>Fixed Device Room 03</span>
+                    </div>
+                    <div class="flex items-center gap-4 font-mono text-slate-300">
+                        <span id="current-time-display">14:32:05</span>
+                        <span><i class="fa-solid fa-battery-three-quarters text-emerald-400"></i> 88%</span>
+                    </div>
+                </div>
+
+                <!-- DYNAMIC SCREEN CONTENT -->
+                <div class="p-6 flex-1 flex flex-col justify-between bg-slate-900/90 relative">
+
+                    <!-- STEP 1: PROCESS SELECTION -->
+                    <div id="step-1" class="step-container flex-1 flex flex-col">
+                        <div class="mb-6">
+                            <span class="text-xs font-semibold text-siemens-teal tracking-wider uppercase">Step 1 of 6</span>
+                            <h2 class="text-2xl sm:text-3xl font-bold text-white mt-1">What activity will you perform in this room?</h2>
+                            <p class="text-slate-400 text-sm mt-1">Select the current task. Designed for easy touch interaction with gloves.</p>
+                        </div>
+
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 my-auto">
+                            <!-- Pre-assembly -->
+                            <button onclick="selectProcess('Pre-assembly', this)" class="process-card touch-card bg-slate-800 hover:bg-slate-700/80 border-2 border-slate-700 hover:border-siemens-teal p-6 rounded-xl text-left flex flex-col justify-between h-44 transition group">
+                                <div class="w-12 h-12 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-siemens-teal text-2xl group-hover:scale-110 transition">
+                                    <i class="fa-solid fa-layer-group"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-xl text-white">Pre-assembly</h3>
+                                    <p class="text-xs text-slate-400 mt-1">Inspection & preparation of faces/parts</p>
+                                </div>
+                            </button>
+
+                            <!-- Assembly -->
+                            <button onclick="selectProcess('Assembly', this)" class="process-card touch-card bg-slate-800 hover:bg-slate-700/80 border-2 border-slate-700 hover:border-siemens-teal p-6 rounded-xl text-left flex flex-col justify-between h-44 transition group">
+                                <div class="w-12 h-12 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 text-2xl group-hover:scale-110 transition">
+                                    <i class="fa-solid fa-hammer"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-xl text-white">Assembly</h3>
+                                    <p class="text-xs text-slate-400 mt-1">Reinforcements, welding & tank interior</p>
+                                </div>
+                            </button>
+
+                            <!-- Painting -->
+                            <button onclick="selectProcess('Painting', this)" class="process-card touch-card bg-slate-800 hover:bg-slate-700/80 border-2 border-slate-700 hover:border-siemens-teal p-6 rounded-xl text-left flex flex-col justify-between h-44 transition group">
+                                <div class="w-12 h-12 rounded-lg bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 text-2xl group-hover:scale-110 transition">
+                                    <i class="fa-solid fa-spray-can"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-xl text-white">Painting</h3>
+                                    <p class="text-xs text-slate-400 mt-1">Coating finish & paint scheme</p>
+                                </div>
+                            </button>
+
+                            <!-- Markings -->
+                            <button onclick="selectProcess('Markings', this)" class="process-card touch-card bg-slate-800 hover:bg-slate-700/80 border-2 border-slate-700 hover:border-siemens-teal p-6 rounded-xl text-left flex flex-col justify-between h-44 transition group">
+                                <div class="w-12 h-12 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 text-2xl group-hover:scale-110 transition">
+                                    <i class="fa-solid fa-tags"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-xl text-white">Markings</h3>
+                                    <p class="text-xs text-slate-400 mt-1">Center of gravity & HV markings</p>
+                                </div>
+                            </button>
+                        </div>
+
+                        <div class="mt-6 flex items-center justify-between pt-4 border-t border-slate-800">
+                            <span class="text-xs text-slate-400"><i class="fa-solid fa-circle-info text-siemens-teal mr-1"></i> Any activity is allowed regardless of room designation.</span>
+                            <button onclick="goToStep(2)" id="btn-to-step-2" disabled class="bg-slate-700 text-slate-400 font-bold px-6 py-3 rounded-xl flex items-center gap-2 cursor-not-allowed transition">
+                                <span>Next: Identification</span> <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- STEP 2: OPERATOR REGISTRATION & WORK ORDER -->
+                    <div id="step-2" class="step-container flex-1 flex-col hidden">
+                        <div class="mb-6">
+                            <span class="text-xs font-semibold text-siemens-teal tracking-wider uppercase">Step 2 of 6</span>
+                            <h2 class="text-2xl sm:text-3xl font-bold text-white mt-1">Operator & Work Order Identification</h2>
+                            <p class="text-slate-400 text-sm mt-1">Selected Process: <strong id="selected-process-display" class="text-siemens-teal">Pre-assembly</strong></p>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 my-auto">
+                            <!-- Select Operator -->
+                            <div class="bg-slate-800/90 border border-slate-700 p-5 rounded-xl flex flex-col justify-between">
+                                <div>
+                                    <label class="block text-sm font-bold text-slate-300 mb-2">
+                                        <i class="fa-solid fa-user-gear text-siemens-teal mr-2"></i> 1. Select Your Name:
+                                    </label>
+                                    <div class="relative">
+                                        <select id="operator-select" onchange="checkStep2Valid()" class="w-full bg-slate-900 border-2 border-slate-700 focus:border-siemens-teal text-white text-lg font-semibold rounded-xl p-4 appearance-none cursor-pointer focus:outline-none">
+                                            <option value="" disabled selected>-- Tap to choose your name --</option>
+                                            <option value="Carlos Mendoza (ID: 4092)">Carlos Mendoza (Senior Welder)</option>
+                                            <option value="Jorge Ramírez (ID: 3105)">Jorge Ramírez (Welding Tech)</option>
+                                            <option value="Martha Gutiérrez (ID: 5521)">Martha Gutiérrez (Coating Specialist)</option>
+                                            <option value="Luis Alfonso Reyes (ID: 1082)">Luis Alfonso Reyes (Assembly Operator)</option>
+                                        </select>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-400">
+                                            <i class="fa-solid fa-chevron-down text-xl"></i>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Visual Card of selected user -->
+                                <div id="user-badge" class="mt-4 bg-slate-900/60 border border-slate-700/60 p-3 rounded-lg flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-slate-300 font-bold text-lg">
+                                        <i class="fa-solid fa-user"></i>
+                                    </div>
+                                    <div class="text-xs">
+                                        <div class="text-slate-300 font-semibold">Operator Not Selected</div>
+                                        <div class="text-slate-500">Tap the dropdown menu above</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Select Work Order -->
+                            <div class="bg-slate-800/90 border border-slate-700 p-5 rounded-xl flex flex-col justify-between">
+                                <div>
+                                    <label class="block text-sm font-bold text-slate-300 mb-2">
+                                        <i class="fa-solid fa-file-lines text-siemens-teal mr-2"></i> 2. Work Order Number (WO):
+                                    </label>
+                                    <div class="flex gap-2 mb-3">
+                                        <input type="text" id="work-order-input" oninput="checkStep2Valid()" placeholder="e.g. WO-2026-0891" value="WO-2026-0891" class="flex-1 bg-slate-900 border-2 border-slate-700 focus:border-siemens-teal text-white text-lg font-mono font-bold rounded-xl px-4 py-3 focus:outline-none uppercase">
+                                        <button type="button" onclick="scanBarcodeMock()" class="bg-siemens-dark hover:bg-siemens-teal text-white px-4 rounded-xl flex items-center gap-2 font-semibold text-xs border border-siemens-teal/30">
+                                            <i class="fa-solid fa-barcode text-lg"></i> Scan
+                                        </button>
+                                    </div>
+
+                                    <!-- Blueprint Info Card -->
+                                    <div class="bg-slate-950 p-3 rounded-lg border border-slate-800 text-xs flex items-center justify-between">
+                                        <div class="flex items-center gap-3">
+                                            <i class="fa-solid fa-map text-amber-400 text-2xl"></i>
+                                            <div>
+                                                <div class="text-white font-bold">Medium Tank Type B (2,500L)</div>
+                                                <div class="text-slate-400">Order Quantity: <span class="text-emerald-400 font-bold">12 Units</span></div>
+                                            </div>
+                                        </div>
+                                        <span class="bg-amber-500/20 text-amber-300 px-2 py-1 rounded text-[10px] font-bold">BLUEPRINT PE-402</span>
+                                    </div>
+                                </div>
+
+                                <p class="text-[11px] text-slate-400 mt-2"><i class="fa-solid fa-circle-check text-emerald-400 mr-1"></i> Wall blueprint matches selected WO.</p>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 flex items-center justify-between pt-4 border-t border-slate-800">
+                            <button onclick="goToStep(1)" class="bg-slate-800 text-slate-300 font-bold px-6 py-3 rounded-xl hover:bg-slate-700 transition">
+                                <i class="fa-solid fa-arrow-left"></i> Back
+                            </button>
+                            <button onclick="startTimerAndProceed()" id="btn-to-step-3" class="bg-siemens-teal text-slate-950 font-bold px-8 py-3 rounded-xl flex items-center gap-2 hover:bg-siemens-accent shadow-lg shadow-siemens-teal/20 transition">
+                                <span>Start Task & Timer</span> <i class="fa-solid fa-play"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- STEP 3: REAL-TIME MEASUREMENT -->
+                    <div id="step-3" class="step-container flex-1 flex-col hidden">
+                        <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4 mb-4">
+                            <div>
+                                <span class="text-xs font-semibold text-emerald-400 tracking-wider uppercase flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span> Live Tracking Active
+                                </span>
+                                <h2 class="text-xl sm:text-2xl font-bold text-white mt-1" id="active-task-header">Pre-assembly in WO-2026-0891</h2>
+                            </div>
+                            <div class="bg-slate-800 px-4 py-2 rounded-xl border border-slate-700 text-right">
+                                <span class="text-xs text-slate-400 block">Operator at Station</span>
+                                <span id="active-operator-display" class="text-sm font-bold text-siemens-teal">Carlos Mendoza</span>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 my-auto">
+                            <!-- BIG TIMER COUNTER -->
+                            <div class="lg:col-span-2 bg-slate-950 border-2 border-slate-800 rounded-2xl p-6 flex flex-col items-center justify-center text-center relative overflow-hidden">
+                                <div class="text-xs uppercase font-bold tracking-widest text-slate-400 mb-2">Elapsed Time</div>
+                                <div id="timer-display" class="font-mono text-5xl sm:text-7xl font-extrabold text-white tracking-wider my-2">
+                                    00:14:32
+                                </div>
+                                <div class="text-xs text-slate-400 mb-6">Historical average for this task: <span class="text-amber-400 font-mono">00:45:00</span></div>
+
+                                <!-- INTERRUPT / PAUSE ACTIONS -->
+                                <div class="flex flex-wrap justify-center gap-3 w-full max-w-md">
+                                    <button onclick="togglePauseTask()" id="btn-pause-task" class="flex-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50 font-bold px-4 py-3 rounded-xl flex items-center justify-center gap-2 text-sm transition">
+                                        <i class="fa-solid fa-pause text-base"></i> <span id="pause-btn-text">Pause for Reassignment</span>
+                                    </button>
+                                    <button onclick="showToastNotification('Material failure reported to supervisor.')" class="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 font-semibold px-4 py-3 rounded-xl flex items-center gap-2 text-sm transition">
+                                        <i class="fa-solid fa-triangle-exclamation text-amber-400"></i> Report Issue
+                                    </button>
+                                </div>
+
+                                <!-- Status Banner if Paused -->
+                                <div id="pause-alert-banner" class="hidden absolute inset-0 bg-slate-950/90 backdrop-blur-sm flex flex-col items-center justify-center p-6">
+                                    <div class="w-16 h-16 rounded-full bg-amber-500/20 border border-amber-500 text-amber-400 flex items-center justify-center text-3xl mb-3 animate-bounce">
+                                        <i class="fa-solid fa-user-clock"></i>
+                                    </div>
+                                    <h3 class="text-xl font-bold text-white">Task Paused by Supervisor</h3>
+                                    <p class="text-sm text-slate-300 max-w-sm text-center mt-1">Time tracking for this activity is paused while performing another priority task.</p>
+                                    <button onclick="togglePauseTask()" class="mt-5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-6 py-3 rounded-xl shadow-lg transition">
+                                        <i class="fa-solid fa-play mr-2"></i> Resume Activity
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- OTHER WORKERS IN SAME ROOM -->
+                            <div class="bg-slate-800/80 border border-slate-700 rounded-2xl p-5 flex flex-col justify-between">
+                                <div>
+                                    <h3 class="font-bold text-white text-sm mb-3 flex items-center justify-between">
+                                        <span><i class="fa-solid fa-users text-siemens-teal mr-2"></i> In This Room</span>
+                                        <span class="bg-slate-700 text-slate-300 text-[10px] px-2 py-0.5 rounded-full">2 People</span>
+                                    </h3>
+                                    
+                                    <div class="space-y-3">
+                                        <!-- Worker 1 -->
+                                        <div class="bg-slate-900 p-3 rounded-xl border border-slate-700/80 flex items-center justify-between">
+                                            <div class="flex items-center gap-2.5">
+                                                <div class="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-xs">CM</div>
+                                                <div>
+                                                    <div class="text-xs font-bold text-white">Carlos Mendoza (You)</div>
+                                                    <div class="text-[10px] text-emerald-400">Pre-assembly • WO-2026-0891</div>
+                                                </div>
+                                            </div>
+                                            <span class="text-[10px] font-mono text-emerald-400">00:14:32</span>
+                                        </div>
+
+                                        <!-- Worker 2 -->
+                                        <div class="bg-slate-900 p-3 rounded-xl border border-slate-700/80 flex items-center justify-between opacity-80">
+                                            <div class="flex items-center gap-2.5">
+                                                <div class="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold text-xs">JR</div>
+                                                <div>
+                                                    <div class="text-xs font-bold text-white">Jorge Ramírez</div>
+                                                    <div class="text-[10px] text-indigo-300">Bevel Cut • WO-2026-0888</div>
+                                                </div>
+                                            </div>
+                                            <span class="text-[10px] font-mono text-slate-400">01:05:10</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 pt-3 border-t border-slate-700/60 text-[11px] text-slate-400">
+                                    <i class="fa-solid fa-circle-check text-siemens-teal mr-1"></i> System differentiates individual activity even when sharing the room.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 flex items-center justify-between pt-4 border-t border-slate-800">
+                            <button onclick="goToStep(2)" class="bg-slate-800 text-slate-300 font-bold px-6 py-3 rounded-xl hover:bg-slate-700 transition">
+                                <i class="fa-solid fa-arrow-left"></i> Edit Information
+                            </button>
+                            <button onclick="goToStep(4)" class="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-8 py-3 rounded-xl flex items-center gap-2 shadow-lg shadow-emerald-500/20 transition">
+                                <span>Finish Task & Inspect</span> <i class="fa-solid fa-check"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- STEP 4: SELF-CHECK & PHOTO EVIDENCE -->
+                    <div id="step-4" class="step-container flex-1 flex-col hidden">
+                        <div class="mb-4">
+                            <span class="text-xs font-semibold text-siemens-teal tracking-wider uppercase">Step 4 of 6</span>
+                            <h2 class="text-2xl sm:text-3xl font-bold text-white mt-1">Quality Self-Check & Photo Evidence</h2>
+                            <p class="text-slate-400 text-sm mt-1">Tolerance Verification by Process: <strong id="process-checklist-title" class="text-siemens-teal">Pre-assembly</strong></p>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 my-auto">
+                            <!-- DYNAMIC CHECKLIST TABLE -->
+                            <div class="lg:col-span-2 bg-slate-800/90 border border-slate-700 p-4 rounded-xl flex flex-col justify-between overflow-hidden">
+                                <div>
+                                    <h3 class="font-bold text-white text-sm mb-2 flex items-center gap-2">
+                                        <i class="fa-solid fa-clipboard-check text-emerald-400"></i> Technical Inspection Checklist
+                                    </h3>
+
+                                    <div class="overflow-x-auto custom-scrollbar max-h-72">
+                                        <table class="w-full text-left text-xs text-slate-300">
+                                            <thead class="bg-slate-950 text-slate-400 uppercase text-[10px]">
+                                                <tr>
+                                                    <th class="p-2">Category / Req.</th>
+                                                    <th class="p-2">Description</th>
+                                                    <th class="p-2">Tool / Tolerance</th>
+                                                    <th class="p-2 text-center">Measured Value</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="dynamic-checklist-tbody" class="divide-y divide-slate-700/60">
+                                                <!-- Dynamic rows via JS -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                <!-- Reward Badge -->
+                                <div id="self-bonus-badge" class="mt-3 bg-emerald-500/10 border border-emerald-500/40 p-2.5 rounded-lg flex items-center gap-3">
+                                    <i class="fa-solid fa-award text-emerald-400 text-xl"></i>
+                                    <div class="text-xs">
+                                        <div class="text-emerald-300 font-bold">Siemens Points Program</div>
+                                        <div class="text-slate-300">Ensure values are within tolerance to earn <strong class="text-emerald-400">+2 Points</strong>.</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- MANDATORY PHOTO EVIDENCE -->
+                            <div class="bg-slate-800/90 border border-slate-700 p-4 rounded-xl flex flex-col justify-between">
+                                <div>
+                                    <h3 class="font-bold text-white text-sm mb-2 flex items-center justify-between">
+                                        <span><i class="fa-solid fa-camera text-siemens-teal mr-2"></i> Photo Evidence</span>
+                                        <span class="bg-amber-500/20 text-amber-300 text-[10px] px-2 py-0.5 rounded font-bold">REQUIRED</span>
+                                    </h3>
+                                    <p class="text-xs text-slate-400 mb-3">Take a photo of the completed part to enable task completion.</p>
+
+                                    <!-- Camera Preview Box -->
+                                    <div class="bg-slate-950 border-2 border-dashed border-slate-700 rounded-xl h-40 flex flex-col items-center justify-center relative overflow-hidden group">
+                                        <div id="camera-placeholder" class="flex flex-col items-center justify-center text-slate-500 p-4">
+                                            <i class="fa-solid fa-camera-retro text-3xl mb-1 text-slate-600"></i>
+                                            <span class="text-xs font-semibold">Camera ready</span>
+                                        </div>
+
+                                        <!-- Simulated Photo -->
+                                        <img id="captured-photo-sim" src="https://images.unsplash.com/photo-1504328345606-18bbc8c9d7d1?auto=format&fit=crop&w=600&q=80" alt="Evidence" class="hidden absolute inset-0 w-full h-full object-cover">
+                                        
+                                        <button type="button" onclick="takePhotoMock()" class="absolute bottom-2 bg-siemens-teal text-slate-950 font-bold px-3 py-1.5 rounded-lg text-xs flex items-center gap-1.5 hover:bg-siemens-accent transition shadow-lg">
+                                            <i class="fa-solid fa-aperture"></i> <span>Capture Photo</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="mt-3 text-[11px] text-slate-400">
+                                    <i class="fa-solid fa-shield-halved text-emerald-400 mr-1"></i> Prevents premature or fraudulent time tracking.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 flex items-center justify-between pt-4 border-t border-slate-800">
+                            <button onclick="goToStep(3)" class="bg-slate-800 text-slate-300 font-bold px-6 py-3 rounded-xl hover:bg-slate-700 transition">
+                                <i class="fa-solid fa-arrow-left"></i> Back to Timer
+                            </button>
+                            <button onclick="completeTaskAndProceed()" id="btn-complete-step-4" disabled class="bg-slate-700 text-slate-400 font-bold px-8 py-3 rounded-xl flex items-center gap-2 cursor-not-allowed transition">
+                                <span>Complete & Submit</span> <i class="fa-solid fa-circle-check"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- STEP 5: NEXT STEP INBOUND INSPECTION -->
+                    <div id="step-5" class="step-container flex-1 flex-col hidden">
+                        <div class="mb-4">
+                            <span class="text-xs font-semibold text-indigo-400 tracking-wider uppercase">Step 5 of 6</span>
+                            <h2 class="text-2xl sm:text-3xl font-bold text-white mt-1">Next Step: Receiving Inspection</h2>
+                            <p class="text-slate-400 text-sm mt-1">Simulation: Now in the <strong class="text-indigo-400">Painting Room</strong> receiving the same Order (WO-2026-0891).</p>
+                        </div>
+
+                        <div class="bg-slate-800/90 border border-slate-700 p-6 rounded-xl my-auto space-y-6">
+                            <div class="flex items-center justify-between bg-slate-900 p-4 rounded-xl border border-slate-700">
+                                <div class="flex items-center gap-3">
+                                    <div class="w-10 h-10 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center font-bold">
+                                        <i class="fa-solid fa-spray-can"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-bold text-white text-base">New Operator: Martha Gutiérrez</h4>
+                                        <p class="text-xs text-slate-400">Process: Epoxy Painting | WO-2026-0891</p>
+                                    </div>
+                                </div>
+                                <span class="bg-emerald-500/20 text-emerald-400 text-xs px-3 py-1 rounded-full border border-emerald-500/30">Incoming Inspection</span>
+                            </div>
+
+                            <div class="border-2 border-dashed border-amber-500/40 bg-amber-500/5 p-5 rounded-xl">
+                                <h3 class="font-bold text-amber-300 text-base mb-2 flex items-center gap-2">
+                                    <i class="fa-solid fa-magnifying-glass text-amber-400"></i> Is the incoming part from the previous step in perfect condition?
+                                </h3>
+                                <p class="text-xs text-slate-300 mb-4">As painter, Martha must verify that previous assembly has no defects before applying coating.</p>
+
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <button onclick="approveIncomingWork()" id="btn-approve-work" class="bg-slate-900 hover:bg-emerald-500/20 border-2 border-slate-700 hover:border-emerald-500 p-4 rounded-xl text-left flex items-center justify-between transition group">
+                                        <div>
+                                            <div class="font-bold text-white group-hover:text-emerald-400">All Good</div>
+                                            <div class="text-xs text-slate-400">Proceed to painting normally</div>
+                                        </div>
+                                        <i class="fa-solid fa-circle-check text-2xl text-slate-600 group-hover:text-emerald-400"></i>
+                                    </button>
+
+                                    <button onclick="reportDefectModal()" id="btn-report-defect" class="bg-slate-900 hover:bg-rose-500/20 border-2 border-slate-700 hover:border-rose-500 p-4 rounded-xl text-left flex items-center justify-between transition group">
+                                        <div>
+                                            <div class="font-bold text-white group-hover:text-rose-400">Report Defect</div>
+                                            <div class="text-xs text-slate-400">Requires rework at previous station</div>
+                                        </div>
+                                        <i class="fa-solid fa-triangle-exclamation text-2xl text-slate-600 group-hover:text-rose-400"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Info Box -->
+                            <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-700/80 text-xs text-slate-300 flex items-center gap-3">
+                                <i class="fa-solid fa-scale-balanced text-siemens-teal text-xl"></i>
+                                <div>
+                                    <strong>Quality Policy Rule:</strong> If a defect is reported here, the system applies a <strong>-4 points penalty</strong> to the previous operator for passing bad quality downstream.
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 flex items-center justify-between pt-4 border-t border-slate-800">
+                            <button onclick="goToStep(4)" class="bg-slate-800 text-slate-300 font-bold px-6 py-3 rounded-xl hover:bg-slate-700 transition">
+                                <i class="fa-solid fa-arrow-left"></i> Back to Step 4
+                            </button>
+                            <button onclick="goToStep(6)" class="bg-siemens-teal text-slate-950 font-bold px-8 py-3 rounded-xl flex items-center gap-2 hover:bg-siemens-accent transition">
+                                <span>View Impact & Rework</span> <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- STEP 6: AUTOMATIC REWORK & POINTS SCOREBOARD -->
+                    <div id="step-6" class="step-container flex-1 flex-col hidden">
+                        <div class="mb-4">
+                            <span class="text-xs font-semibold text-siemens-teal tracking-wider uppercase">Step 6 of 6</span>
+                            <h2 class="text-2xl sm:text-3xl font-bold text-white mt-1">Rework Generation & Gamification</h2>
+                            <p class="text-slate-400 text-sm mt-1">Total traceability between original productive time vs. time spent on reworks.</p>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 my-auto">
+                            <!-- GENERATED REWORK TICKET -->
+                            <div class="bg-slate-800/90 border border-slate-700 p-5 rounded-xl flex flex-col justify-between">
+                                <div>
+                                    <div class="flex items-center justify-between mb-3">
+                                        <h3 class="font-bold text-rose-400 text-base flex items-center gap-2">
+                                            <i class="fa-solid fa-rotate-left"></i> Rework Task Enabled
+                                        </h3>
+                                        <span class="bg-rose-500/20 text-rose-300 font-mono text-xs px-2.5 py-1 rounded-full font-bold">REWORK #RW-104</span>
+                                    </div>
+
+                                    <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-2 text-xs">
+                                        <div class="flex justify-between">
+                                            <span class="text-slate-400">Work Order:</span>
+                                            <span class="text-white font-mono font-bold">WO-2026-0891</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-slate-400">Destination Station:</span>
+                                            <span class="text-amber-400 font-bold">Room 03 - Pre-assembly</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-slate-400">Detected Defect:</span>
+                                            <span class="text-rose-400 font-bold">Out of dimensional tolerance</span>
+                                        </div>
+                                        <div class="flex justify-between">
+                                            <span class="text-slate-400">Reported By:</span>
+                                            <span class="text-slate-200">Martha Gutiérrez (Painting)</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 bg-slate-900 p-3 rounded-lg border border-slate-700/80 text-[11px] text-slate-300">
+                                    <i class="fa-solid fa-clock-rotate-left text-amber-400 mr-1"></i> Rework hours are now tracked separately to prevent skewing standard production times.
+                                </div>
+                            </div>
+
+                            <!-- POINTS BOARD AND CALCULATION RULE -->
+                            <div class="bg-slate-800/90 border border-slate-700 p-5 rounded-xl flex flex-col justify-between">
+                                <div>
+                                    <h3 class="font-bold text-white text-base mb-3 flex items-center justify-between">
+                                        <span><i class="fa-solid fa-trophy text-amber-400 mr-2"></i> Combined Evaluation (Quality + Time)</span>
+                                        <span class="text-xs text-slate-400">Scoring Rules</span>
+                                    </h3>
+
+                                    <div class="bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-xs space-y-2 mb-3">
+                                        <div class="text-siemens-teal font-bold mb-1"><i class="fa-solid fa-calculator mr-1"></i> Siemens Energy Formula:</div>
+                                        <div class="text-slate-300 flex items-center justify-between">
+                                            <span>• No reworks on order:</span>
+                                            <span class="text-emerald-400 font-bold">+3 pts / WO</span>
+                                        </div>
+                                        <div class="text-slate-300 flex items-center justify-between">
+                                            <span>• Defect caught & fixed at origin:</span>
+                                            <span class="text-emerald-300 font-bold">+2 pts / WO</span>
+                                        </div>
+                                        <div class="text-slate-300 flex items-center justify-between">
+                                            <span>• Defect caught downstream:</span>
+                                            <span class="text-rose-400 font-bold">-4 pts / Defect</span>
+                                        </div>
+                                        <div class="text-slate-300 flex items-center justify-between border-t border-slate-800 pt-1.5 mt-1.5">
+                                            <span>• Variance vs Target Time:</span>
+                                            <span class="text-amber-400 font-bold">±1 pt / min diff</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-2 pt-2 border-t border-slate-700 text-[11px] text-slate-400 flex items-center justify-between">
+                                    <span>Total Score = Quality + Time</span>
+                                    <span class="text-siemens-teal font-semibold">Determines LMS Rank</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mt-6 flex items-center justify-between pt-4 border-t border-slate-800">
+                            <button onclick="goToStep(5)" class="bg-slate-800 text-slate-300 font-bold px-6 py-3 rounded-xl hover:bg-slate-700 transition">
+                                <i class="fa-solid fa-arrow-left"></i> Back to Step 5
+                            </button>
+                            <button onclick="switchMainView('lms')" class="bg-siemens-teal text-slate-950 font-bold px-8 py-3 rounded-xl flex items-center gap-2 hover:bg-siemens-accent transition shadow-lg">
+                                <span>Go to LMS Dashboard</span> <i class="fa-solid fa-chart-line"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- VIEW 2: LMS SUPERVISOR & ANALYTICS DASHBOARD -->
+    <div id="view-lms-container" class="flex-1 flex-col hidden p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-6">
+        
+        <!-- DASHBOARD CONTROLS BAR -->
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <h1 class="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-chart-pie text-siemens-teal"></i> LMS Dashboard & Plant Analytics
+                </h1>
+                <p class="text-xs text-slate-400 mt-0.5">Key Performance Indicators (KPIs), average times per tank, bottleneck analysis and operator ranking.</p>
+            </div>
+            
+            <div class="flex flex-wrap items-center gap-3">
+                <!-- Size Filter -->
+                <div class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs flex items-center gap-2">
+                    <span class="text-slate-400">Tank Filter:</span>
+                    <select id="filter-tank-size" onchange="updateDashboardMetrics()" class="bg-transparent text-white font-semibold focus:outline-none cursor-pointer">
+                        <option value="all" class="bg-slate-900">All Sizes</option>
+                        <option value="small" class="bg-slate-900">Small (Multiple/Day)</option>
+                        <option value="medium" class="bg-slate-900">Medium (1-2 Days)</option>
+                        <option value="large" class="bg-slate-900">Large (Up to 15 Days)</option>
+                    </select>
+                </div>
+                <!-- Range Filter -->
+                <div class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-300">
+                    <i class="fa-solid fa-calendar-days text-siemens-teal mr-1"></i> Last 30 Days
+                </div>
+            </div>
+        </div>
+
+        <!-- KPI METRICS SUMMARY CARDS -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <!-- Card 1: Average Time per WO -->
+            <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col justify-between">
+                <div class="flex items-center justify-between text-slate-400 text-xs font-medium">
+                    <span>Average Time per Work Order (WO)</span>
+                    <i class="fa-solid fa-clock text-siemens-teal text-base"></i>
+                </div>
+                <div class="mt-3">
+                    <span class="text-3xl font-bold text-white font-mono" id="kpi-avg-ot">4.2 Days</span>
+                    <span class="text-xs text-emerald-400 ml-2 font-semibold"><i class="fa-solid fa-arrow-down"></i> -8.5%</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-2">Target average: 4.5 days per WO</p>
+            </div>
+
+            <!-- Card 2: Average Time per Large Tank -->
+            <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col justify-between">
+                <div class="flex items-center justify-between text-slate-400 text-xs font-medium">
+                    <span>Average Time / Large Tank</span>
+                    <i class="fa-solid fa-industry text-amber-400 text-base"></i>
+                </div>
+                <div class="mt-3">
+                    <span class="text-3xl font-bold text-white font-mono" id="kpi-avg-large-tank">14.1 Days</span>
+                    <span class="text-xs text-emerald-400 ml-2 font-semibold"><i class="fa-solid fa-check"></i> On Target</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-2">Small tanks: 1.2 hrs | Medium: 18.5 hrs</p>
+            </div>
+
+            <!-- Card 3: Overall Equipment Effectiveness (OEE) -->
+            <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col justify-between">
+                <div class="flex items-center justify-between text-slate-400 text-xs font-medium">
+                    <span>Overall Efficiency (OEE)</span>
+                    <i class="fa-solid fa-bolt text-emerald-400 text-base"></i>
+                </div>
+                <div class="mt-3">
+                    <span class="text-3xl font-bold text-white font-mono" id="kpi-oee">92.4%</span>
+                    <span class="text-xs text-emerald-400 ml-2 font-semibold">+3.1% vs last mo.</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-2">Actual productive time vs estimated</p>
+            </div>
+
+            <!-- Card 4: Source Detection Rate -->
+            <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col justify-between">
+                <div class="flex items-center justify-between text-slate-400 text-xs font-medium">
+                    <span>Defect Source Detection</span>
+                    <i class="fa-solid fa-shield-halved text-cyan-400 text-base"></i>
+                </div>
+                <div class="mt-3">
+                    <span class="text-3xl font-bold text-white font-mono" id="kpi-source-rate">88.6%</span>
+                    <span class="text-xs text-emerald-400 ml-2 font-semibold"><i class="fa-solid fa-arrow-up"></i> +12%</span>
+                </div>
+                <p class="text-[11px] text-slate-400 mt-2">Only 11.4% reaches downstream booths</p>
+            </div>
+        </div>
+
+        <!-- GANTT CHART & NEXT DELIVERY SCHEDULE -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-siemens-teal/20 border border-siemens-teal/40 flex items-center justify-center text-siemens-teal font-bold text-lg">
+                        <i class="fa-solid fa-bars-progress"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-white text-base">Gantt Chart • Active Work Order Tracking (WO-2026-0891)</h3>
+                        <p class="text-xs text-slate-400">Visual comparison between Standard Manufacturing Time vs. Actual Progress and Variance per Process.</p>
+                    </div>
+                </div>
+
+                <!-- NEXT DELIVERY BADGE -->
+                <div class="bg-slate-950 border-2 border-siemens-teal/60 rounded-xl px-4 py-2 flex items-center gap-3 shadow-lg">
+                    <i class="fa-solid fa-truck-fast text-siemens-teal text-2xl animate-pulse"></i>
+                    <div>
+                        <span class="text-[10px] text-slate-400 uppercase tracking-widest font-semibold block">Next Scheduled Delivery</span>
+                        <span class="text-sm font-bold text-white font-mono" id="gantt-next-delivery-date">September 15, 2026</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GANTT LEGEND -->
+            <div class="flex flex-wrap items-center justify-between text-xs text-slate-400 pt-1">
+                <div class="flex items-center gap-6">
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded bg-slate-700 border border-slate-500 inline-block"></span>
+                        <span>Standard Manufacturing Time</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="w-3 h-3 rounded bg-siemens-teal inline-block"></span>
+                        <span>Actual Elapsed Progress</span>
+                    </div>
+                </div>
+                <div class="text-[11px] text-slate-400">
+                    <i class="fa-solid fa-circle-info text-amber-400 mr-1"></i> Variance = Minute difference between Standard and Actual Time.
+                </div>
+            </div>
+
+            <!-- GANTT BARS PER PROCESS -->
+            <div class="space-y-4 pt-2">
+                <!-- PROCESS 1: PRE-ASSEMBLY -->
+                <div class="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800 hover:border-slate-700 transition">
+                    <div class="flex flex-wrap items-center justify-between text-xs mb-2 gap-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-cyan-400"></span>
+                            <span class="font-bold text-white">1. Pre-assembly</span>
+                            <span class="text-slate-500">•</span>
+                            <span class="text-slate-400">Standard: <strong class="text-slate-200">45 min</strong></span>
+                        </div>
+                        <div class="flex items-center gap-3 font-mono">
+                            <span class="text-slate-300">Progress: <strong class="text-emerald-400">100%</strong> (45m / 45m)</span>
+                            <span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded font-bold flex items-center gap-1">
+                                <i class="fa-solid fa-check"></i> On Target (0 min)
+                            </span>
+                        </div>
+                    </div>
+                    <div class="space-y-1.5">
+                        <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden flex" title="Standard Time">
+                            <div class="bg-slate-600 h-2.5 rounded-full" style="width: 100%"></div>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-3 overflow-hidden flex" title="Actual Progress">
+                            <div class="bg-cyan-400 h-3 rounded-full transition-all duration-500" style="width: 100%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROCESS 2: ASSEMBLY -->
+                <div class="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800 hover:border-slate-700 transition">
+                    <div class="flex flex-wrap items-center justify-between text-xs mb-2 gap-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                            <span class="font-bold text-white">2. Assembly</span>
+                            <span class="text-slate-500">•</span>
+                            <span class="text-slate-400">Standard: <strong class="text-slate-200">60 min</strong></span>
+                        </div>
+                        <div class="flex items-center gap-3 font-mono">
+                            <span class="text-slate-300">Progress: <strong class="text-amber-400">75%</strong> (57m / 60m)</span>
+                            <span class="bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] px-2 py-0.5 rounded font-bold flex items-center gap-1">
+                                <i class="fa-solid fa-triangle-exclamation"></i> Variance: +12 min
+                            </span>
+                        </div>
+                    </div>
+                    <div class="space-y-1.5">
+                        <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden flex" title="Standard Time">
+                            <div class="bg-slate-600 h-2.5 rounded-full" style="width: 100%"></div>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-3 overflow-hidden flex" title="Actual Progress">
+                            <div class="bg-amber-400 h-3 rounded-full transition-all duration-500" style="width: 75%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROCESS 3: PAINTING -->
+                <div class="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800 hover:border-slate-700 transition">
+                    <div class="flex flex-wrap items-center justify-between text-xs mb-2 gap-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-indigo-400"></span>
+                            <span class="font-bold text-white">3. Painting</span>
+                            <span class="text-slate-500">•</span>
+                            <span class="text-slate-400">Standard: <strong class="text-slate-200">40 min</strong></span>
+                        </div>
+                        <div class="flex items-center gap-3 font-mono">
+                            <span class="text-slate-300">Progress: <strong class="text-indigo-300">30%</strong> (10m / 40m)</span>
+                            <span class="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[10px] px-2 py-0.5 rounded font-bold flex items-center gap-1">
+                                <i class="fa-solid fa-arrow-trend-down"></i> Variance: -2 min
+                            </span>
+                        </div>
+                    </div>
+                    <div class="space-y-1.5">
+                        <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden flex" title="Standard Time">
+                            <div class="bg-slate-600 h-2.5 rounded-full" style="width: 100%"></div>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-3 overflow-hidden flex" title="Actual Progress">
+                            <div class="bg-indigo-500 h-3 rounded-full transition-all duration-500" style="width: 30%"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PROCESS 4: MARKINGS -->
+                <div class="bg-slate-950/70 p-3.5 rounded-xl border border-slate-800 hover:border-slate-700 transition">
+                    <div class="flex flex-wrap items-center justify-between text-xs mb-2 gap-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+                            <span class="font-bold text-white">4. Markings</span>
+                            <span class="text-slate-500">•</span>
+                            <span class="text-slate-400">Standard: <strong class="text-slate-200">20 min</strong></span>
+                        </div>
+                        <div class="flex items-center gap-3 font-mono">
+                            <span class="text-slate-300">Progress: <strong class="text-slate-400">0%</strong> (0m / 20m)</span>
+                            <span class="bg-slate-800 text-slate-400 border border-slate-700 text-[10px] px-2 py-0.5 rounded font-bold flex items-center gap-1">
+                                <i class="fa-solid fa-clock"></i> Pending
+                            </span>
+                        </div>
+                    </div>
+                    <div class="space-y-1.5">
+                        <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden flex" title="Standard Time">
+                            <div class="bg-slate-600 h-2.5 rounded-full" style="width: 100%"></div>
+                        </div>
+                        <div class="w-full bg-slate-800 rounded-full h-3 overflow-hidden flex" title="Actual Progress">
+                            <div class="bg-emerald-400 h-3 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CHARTS ROW 1: BOTTLENECK & TANK COMPARISON -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Bottleneck Chart -->
+            <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="font-bold text-white text-base">Bottleneck Analysis by Station</h3>
+                        <p class="text-xs text-slate-400">Standard Time vs Actual Recorded Time (Hours per WO)</p>
+                    </div>
+                    <span class="bg-amber-500/20 text-amber-300 text-[10px] font-bold px-2.5 py-1 rounded">Pre-assembly = Initial Station</span>
+                </div>
+                <div class="h-64 relative flex-1">
+                    <canvas id="bottleneckChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Tank Size Comparison Chart -->
+            <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="font-bold text-white text-base">Manufacturing Times by Tank Size</h3>
+                        <p class="text-xs text-slate-400">Comparison of hours required per produced unit</p>
+                    </div>
+                </div>
+                <div class="h-64 relative flex-1">
+                    <canvas id="tankTypeChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- TABLE: OPERATOR PERFORMANCE & QUALITY MATRIX -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h3 class="font-bold text-white text-base flex items-center gap-2">
+                        <i class="fa-solid fa-users-gear text-siemens-teal"></i> Combined Performance Scoreboard: Quality + Target Time
+                    </h3>
+                    <p class="text-xs text-slate-400 mt-0.5">Calculates operator rank by adding/subtracting Quality Points and Time Variance in minutes.</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-xs text-slate-400">Total Gamified Points:</span>
+                    <span class="bg-amber-500/20 text-amber-300 font-bold text-xs px-3 py-1 rounded-lg border border-amber-500/30">1,280 Points</span>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left text-xs text-slate-300">
+                    <thead class="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider font-semibold border-b border-slate-800">
+                        <tr>
+                            <th class="p-3">Rank</th>
+                            <th class="p-3">Operator</th>
+                            <th class="p-3">Primary Process</th>
+                            <th class="p-3 text-center">Var 1: Quality <br><span class="text-[9px] text-slate-500 font-normal">(+3 No Def, +2 Self-fix, -4 Passed)</span></th>
+                            <th class="p-3 text-center">Var 2: Time vs Target <br><span class="text-[9px] text-slate-500 font-normal">(±1 pt per min variance)</span></th>
+                            <th class="p-3 text-center">Calculation (Quality + Time)</th>
+                            <th class="p-3 text-right">Final Score</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-800/80">
+                        <!-- Martha Gutiérrez -->
+                        <tr class="hover:bg-slate-800/50 transition bg-amber-500/5">
+                            <td class="p-3 font-bold text-amber-400 text-sm">#1</td>
+                            <td class="p-3 font-semibold text-white flex items-center gap-2">
+                                <div class="w-7 h-7 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center text-xs font-bold">MG</div>
+                                <span>Martha Gutiérrez</span>
+                            </td>
+                            <td class="p-3"><span class="bg-indigo-500/10 text-indigo-300 px-2 py-0.5 rounded">Painting</span></td>
+                            <td class="p-3 text-center">
+                                <div class="font-bold text-emerald-400">+22 pts</div>
+                                <div class="text-[10px] text-slate-400">6 WOs ok (+18), 2 Self-fix (+4)</div>
+                            </td>
+                            <td class="p-3 text-center">
+                                <div class="font-bold text-emerald-400">+2 min saved</div>
+                                <div class="text-[10px] text-emerald-400 font-mono">(+2 pts)</div>
+                            </td>
+                            <td class="p-3 text-center font-mono text-slate-300">22 + (2)</td>
+                            <td class="p-3 text-right font-mono font-bold text-amber-400 text-sm">+24 pts</td>
+                        </tr>
+
+                        <!-- Luis Alfonso Reyes -->
+                        <tr class="hover:bg-slate-800/50 transition">
+                            <td class="p-3 font-bold text-slate-300 text-sm">#2</td>
+                            <td class="p-3 font-semibold text-white flex items-center gap-2">
+                                <div class="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold">LR</div>
+                                <span>Luis Alfonso Reyes</span>
+                            </td>
+                            <td class="p-3"><span class="bg-emerald-500/10 text-emerald-300 px-2 py-0.5 rounded">Assembly</span></td>
+                            <td class="p-3 text-center">
+                                <div class="font-bold text-emerald-400">+18 pts</div>
+                                <div class="text-[10px] text-slate-400">6 WOs without rework</div>
+                            </td>
+                            <td class="p-3 text-center">
+                                <div class="font-bold text-emerald-400">+2 min saved</div>
+                                <div class="text-[10px] text-emerald-400 font-mono">(+2 pts)</div>
+                            </td>
+                            <td class="p-3 text-center font-mono text-slate-300">18 + (2)</td>
+                            <td class="p-3 text-right font-mono font-bold text-amber-400 text-sm">+20 pts</td>
+                        </tr>
+
+                        <!-- Carlos Mendoza -->
+                        <tr class="hover:bg-slate-800/50 transition">
+                            <td class="p-3 font-bold text-slate-400 text-sm">#3</td>
+                            <td class="p-3 font-semibold text-white flex items-center gap-2">
+                                <div class="w-7 h-7 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center text-xs font-bold">CM</div>
+                                <span>Carlos Mendoza</span>
+                            </td>
+                            <td class="p-3"><span class="bg-cyan-500/10 text-cyan-300 px-2 py-0.5 rounded">Pre-assembly</span></td>
+                            <td class="p-3 text-center">
+                                <div class="font-bold text-emerald-400" id="carlos-quality-subtotal">+18 pts</div>
+                                <div class="text-[10px] text-slate-400">5 WOs ok (+15), 1 Self-fix (+3)</div>
+                            </td>
+                            <td class="p-3 text-center">
+                                <div class="font-bold text-emerald-400">+1 min saved</div>
+                                <div class="text-[10px] text-emerald-400 font-mono">(+1 pt)</div>
+                            </td>
+                            <td class="p-3 text-center font-mono text-slate-300" id="carlos-formula-display">18 + (1)</td>
+                            <td class="p-3 text-right font-mono font-bold text-amber-400 text-sm" id="carlos-total-score-badge">+19 pts</td>
+                        </tr>
+
+                        <!-- Jorge Ramírez -->
+                        <tr class="hover:bg-slate-800/50 transition">
+                            <td class="p-3 font-bold text-slate-500 text-sm">#4</td>
+                            <td class="p-3 font-semibold text-white flex items-center gap-2">
+                                <div class="w-7 h-7 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-bold">JR</div>
+                                <span>Jorge Ramírez</span>
+                            </td>
+                            <td class="p-3"><span class="bg-amber-500/10 text-amber-300 px-2 py-0.5 rounded">Markings</span></td>
+                            <td class="p-3 text-center">
+                                <div class="font-bold text-rose-400">+2 pts</div>
+                                <div class="text-[10px] text-slate-400">2 WOs ok (+6), 1 Defect passed (-4)</div>
+                            </td>
+                            <td class="p-3 text-center">
+                                <div class="font-bold text-rose-400">+7 min excess</div>
+                                <div class="text-[10px] text-rose-400 font-mono">(-7 pts)</div>
+                            </td>
+                            <td class="p-3 text-center font-mono text-slate-300">2 + (-7)</td>
+                            <td class="p-3 text-right font-mono font-bold text-rose-400 text-sm">-5 pts</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ROW 3: REWORK & INDIRECT TASKS BREAKDOWN -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Pauses Breakdown -->
+            <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col justify-between">
+                <div>
+                    <h3 class="font-bold text-white text-base mb-1">Task Pause & Interruption Causes</h3>
+                    <p class="text-xs text-slate-400 mb-4">Indirect time tracking to preserve standard efficiency metrics.</p>
+                    
+                    <div class="space-y-3 text-xs">
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="text-slate-300">Priority Reassignment by Supervisor</span>
+                                <span class="text-amber-400 font-mono font-bold">48.2 hrs (52%)</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-2">
+                                <div class="bg-amber-400 h-2 rounded-full" style="width: 52%"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="text-slate-300">Material / Part Waiting</span>
+                                <span class="text-cyan-400 font-mono font-bold">24.1 hrs (26%)</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-2">
+                                <div class="bg-cyan-400 h-2 rounded-full" style="width: 26%"></div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <div class="flex justify-between mb-1">
+                                <span class="text-slate-300">Tool Maintenance</span>
+                                <span class="text-rose-400 font-mono font-bold">14.5 hrs (15%)</span>
+                            </div>
+                            <div class="w-full bg-slate-800 rounded-full h-2">
+                                <div class="bg-rose-400 h-2 rounded-full" style="width: 15%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-400">
+                    <i class="fa-solid fa-circle-check text-emerald-400 mr-1"></i> Every pause requires a tap on the tablet to log indirect time.
+                </div>
+            </div>
+
+            <!-- Rework vs Direct Time -->
+            <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl flex flex-col justify-between">
+                <div>
+                    <h3 class="font-bold text-white text-base mb-1">Traceability: Direct Hours vs Rework</h3>
+                    <p class="text-xs text-slate-400 mb-4">Separation of manufacturing time vs time spent correcting defects.</p>
+
+                    <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3 text-xs">
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-300">Direct Productive Hours:</span>
+                            <span class="text-emerald-400 font-mono text-base font-bold">1,420 hrs</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-300">Hours Spent on Reworks:</span>
+                            <span class="text-rose-400 font-mono text-base font-bold">48 hrs (3.2%)</span>
+                        </div>
+                        <div class="h-px bg-slate-800"></div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-slate-400">Estimated Cost of Reworks:</span>
+                            <span class="text-amber-400 font-mono font-bold">$2,840 USD</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-400">
+                    <i class="fa-solid fa-lightbulb text-amber-400 mr-1"></i> The points program reduced rework hours by 40% this quarter.
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- VIEW 3: WEB ORDER MANAGEMENT & TRACEABILITY -->
+    <div id="view-orders-container" class="flex-1 flex-col hidden p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-4">
+        
+        <!-- MODULE BANNER -->
+        <div class="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <h1 class="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+                    <i class="fa-solid fa-network-wired text-siemens-teal"></i> Web Module for WO Assignment, Control & Traceability
+                </h1>
+                <p class="text-xs text-slate-400 mt-0.5">ERP/LMS style view: Top Panel with all WOs, Middle Panel with processes per WO and Bottom Panel with quality & time technical logs.</p>
+            </div>
+            <div class="flex items-center gap-2 font-mono text-xs text-slate-300 bg-slate-950 border border-slate-700 px-3 py-1.5 rounded-xl">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>Synchronized with Live Booths</span>
+            </div>
+        </div>
+
+        <!-- TOOLBAR ACTION BUTTONS -->
+        <div class="bg-slate-900/90 border border-slate-800 p-3 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex flex-wrap items-center gap-2">
+                <button onclick="showToastNotification('Edit mode enabled for selected WO')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-pen-to-square text-siemens-teal"></i> Edit
+                </button>
+                <button onclick="showToastNotification('Red flag alert issued to Quality', 'danger')" class="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-flag text-rose-400"></i> Red Flag
+                </button>
+                <button onclick="updateWebOTData()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-rotate text-emerald-400"></i> Refresh
+                </button>
+                <button onclick="showToastNotification('Printing Consolidated Inspection Report...')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-print text-amber-400"></i> Print inspection report
+                </button>
+                <button onclick="showToastNotification('Inspection notes saved')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-note-sticky text-cyan-400"></i> Notes
+                </button>
+                <button onclick="showToastNotification('Rejection request sent', 'danger')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg font-medium flex items-center gap-1.5 transition">
+                    <i class="fa-solid fa-ban text-rose-400"></i> Reject
+                </button>
+            </div>
+
+            <!-- Search & Filters -->
+            <div class="flex items-center gap-2">
+                <div class="relative">
+                    <input type="text" id="ot-search-input" onkeyup="filterOTTable()" placeholder="Search WO, client or blueprint..." class="bg-slate-950 border border-slate-700 text-white rounded-lg pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:border-siemens-teal w-52 sm:w-64">
+                    <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-2.5 text-slate-500 text-xs"></i>
+                </div>
+                <button class="bg-slate-800 hover:bg-slate-700 text-slate-300 p-2 rounded-lg border border-slate-700 transition">
+                    <i class="fa-solid fa-filter"></i>
+                </button>
+                <button class="bg-slate-800 hover:bg-slate-700 text-slate-300 p-2 rounded-lg border border-slate-700 transition">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- PANE 1: SCREEN 1 (TOP) - ALL WORK ORDERS -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="bg-siemens-teal/20 text-siemens-teal px-2 py-0.5 rounded text-[11px] font-bold border border-siemens-teal/30">PANE 1 (TOP LEFT)</span>
+                    <h3 class="font-bold text-white text-sm sm:text-base">Active & Historical Work Orders (WOs)</h3>
+                </div>
+                <span class="text-xs text-slate-400">Click any row to display its processes below</span>
+            </div>
+
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left text-xs text-slate-300">
+                    <thead class="bg-slate-950 text-slate-400 text-[11px] uppercase tracking-wider font-semibold border-b border-slate-800">
+                        <tr>
+                            <th class="p-3">Work Order (WO)</th>
+                            <th class="p-3">Type / Spec</th>
+                            <th class="p-3">Blueprint</th>
+                            <th class="p-3 text-center">Quantity</th>
+                            <th class="p-3">Supervisor in Charge</th>
+                            <th class="p-3 text-center">Status</th>
+                            <th class="p-3">Overall Progress</th>
+                            <th class="p-3">Start</th>
+                            <th class="p-3">Est. End</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ot-master-tbody" class="divide-y divide-slate-800/80">
+                        <!-- Dynamic rows via JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="flex items-center justify-between text-[11px] text-slate-400 pt-2 border-t border-slate-800/60">
+                <span>Page 1 of 1 (4 Orders Found)</span>
+                <div class="flex items-center gap-2">
+                    <span>Rows per page:</span>
+                    <select class="bg-slate-950 border border-slate-700 text-white rounded px-2 py-0.5 text-xs">
+                        <option>50</option>
+                        <option>10</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- SPLIT PANELS ROW: PANE 2 & PANE 3 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            
+            <!-- PANE 2: PROCESSES OF SELECTED OT -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-[11px] font-bold border border-indigo-500/30">PANE 2 (TOP RIGHT)</span>
+                            <h3 class="font-bold text-white text-sm" id="selected-ot-title-pane2">Process Breakdown: WO-2026-0891</h3>
+                        </div>
+                        <span id="selected-ot-status-badge" class="bg-amber-500/20 text-amber-300 text-[10px] px-2.5 py-0.5 rounded font-bold">WIP (In Progress)</span>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-3">Sub-processes configured for this order. Select a process to view technical inspection.</p>
+
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-950 text-slate-400 text-[10px] uppercase font-semibold border-b border-slate-800">
+                                <tr>
+                                    <th class="p-2.5">Process</th>
+                                    <th class="p-2.5">Operator</th>
+                                    <th class="p-2.5 text-center">Qty</th>
+                                    <th class="p-2.5 text-center">Status</th>
+                                    <th class="p-2.5">Progress</th>
+                                    <th class="p-2.5 text-right">Time vs Target</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ot-processes-tbody" class="divide-y divide-slate-800/80">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="mt-3 pt-2 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+                    <span><i class="fa-solid fa-circle-check text-siemens-teal mr-1"></i> Individual traceability enabled</span>
+                    <span id="pane2-progress-summary" class="font-mono text-siemens-teal font-bold">66% Completed</span>
+                </div>
+            </div>
+
+            <!-- PANE 3: AUDIT AND QUALITY LOGS -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-3 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded text-[11px] font-bold border border-emerald-500/30">PANE 3 (BOTTOM)</span>
+                            <h3 class="font-bold text-white text-sm" id="selected-process-title-pane3">Inspection Details: Pre-assembly (Carlos Mendoza)</h3>
+                        </div>
+                        <span id="pane3-quality-status" class="bg-emerald-500/20 text-emerald-400 text-[10px] px-2.5 py-0.5 rounded font-bold">Passed</span>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-3">Self-check questions, responses, photo evidence and rework log.</p>
+
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left text-xs text-slate-300">
+                            <thead class="bg-slate-950 text-slate-400 text-[10px] uppercase font-semibold border-b border-slate-800">
+                                <tr>
+                                    <th class="p-2.5">Question / Quality Point</th>
+                                    <th class="p-2.5">Start / End</th>
+                                    <th class="p-2.5 text-center">Value / Evidence</th>
+                                    <th class="p-2.5 text-center">Quality Status</th>
+                                    <th class="p-2.5 text-right">Points Impact</th>
+                                </tr>
+                            </thead>
+                            <tbody id="process-audit-tbody" class="divide-y divide-slate-800/80">
+                                <!-- Dynamic rows -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Footer Summary Pane 3 -->
+                <div class="mt-3 pt-2 border-t border-slate-800 text-[11px] text-slate-400 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <i class="fa-solid fa-camera text-siemens-teal"></i>
+                        <span>Photo Evidence: <strong id="pane3-media-flag" class="text-emerald-400">Attached & Validated</strong></span>
+                    </div>
+                    <span id="pane3-points-impact" class="font-mono text-emerald-400 font-bold">+2 Points Awarded</span>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- MODAL: DEFECT REPORTING -->
+    <div id="modal-defect-report" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-slate-900 border-2 border-slate-700 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-xl font-bold text-rose-400 flex items-center gap-2">
+                    <i class="fa-solid fa-triangle-exclamation"></i> Report Previous Step Defect
+                </h3>
+                <button onclick="closeModal('modal-defect-report')" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+
+            <p class="text-xs text-slate-300">Select the defect detected on the part received from previous operator:</p>
+
+            <div class="space-y-2 text-xs">
+                <label class="flex items-center gap-3 p-3 bg-slate-800 rounded-xl border border-slate-700 cursor-pointer hover:border-rose-500">
+                    <input type="radio" name="defect-type" checked class="accent-rose-500">
+                    <div>
+                        <div class="font-bold text-white">Dimensional tolerance deviation</div>
+                        <div class="text-slate-400">Exceeds limits specified in ISO 2768 - 1 Grade C.</div>
+                    </div>
+                </label>
+                <label class="flex items-center gap-3 p-3 bg-slate-800 rounded-xl border border-slate-700 cursor-pointer hover:border-rose-500">
+                    <input type="radio" name="defect-type" class="accent-rose-500">
+                    <div>
+                        <div class="font-bold text-white">Lack of cleanliness / Unallowed buildup</div>
+                        <div class="text-slate-400">Prevents continuation of current process.</div>
+                    </div>
+                </label>
+            </div>
+
+            <div class="bg-rose-500/10 border border-rose-500/30 p-3 rounded-xl text-xs text-rose-300">
+                <i class="fa-solid fa-circle-exclamation mr-1"></i> Previous station will be notified and quality points will be updated in LMS.
+            </div>
+
+            <div class="flex justify-end gap-3 pt-2">
+                <button onclick="closeModal('modal-defect-report')" class="bg-slate-800 text-slate-300 px-4 py-2 rounded-xl text-xs font-semibold">Cancel</button>
+                <button onclick="confirmDefectReport()" class="bg-rose-500 hover:bg-rose-400 text-slate-950 px-6 py-2 rounded-xl text-xs font-bold">Confirm & Enable Rework</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TOAST NOTIFICATION CONTAINER -->
+    <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- FOOTER INFO -->
+    <footer class="bg-slate-950 border-t border-slate-800 py-3 px-4 text-center text-xs text-slate-500">
+        Siemens Energy Manufacturing System • Interactive Step-by-Step Demo & LMS Dashboard for Time and Quality Control
+    </footer>
+
+    <script>
+        // PROCESS CHECKLIST MATRIX DATA (TRANSLATED FROM ATTACHED IMAGE)
+        const processChecklistData = {
+            'Pre-assembly': [
+                { cat: 'Side Face: Parts & Holes', req: 'Panel support positioning', desc: 'Verify distance between tank wall and front face of the support', inst: 'Measuring Tape', tol: 'ISO 2768 - 1 Grade C' },
+                { cat: 'Rear Face: Parts & Holes', req: 'Radiator lug location on rear face', desc: 'Verify horizontal alignment relative to tank center per blueprint', inst: 'Measuring Tape', tol: 'ISO 2768 - 1 Grade C' },
+                { cat: 'Front Face: Parts & Holes', req: 'Ground terminal placement on front face', desc: 'Verify horizontal and vertical location per blueprint for each terminal', inst: 'Measuring Tape', tol: 'ISO 2768 - 1 Grade C' },
+                { cat: 'Bushing: Holes & Studs', req: 'Bushing hole dimensions', desc: 'Holes on left and right side of front face', inst: 'Tape / Feeler Gauge', tol: 'ISO 2768 - 1 Grade C' }
+            ],
+            'Assembly': [
+                { cat: 'Reinforcements', req: 'Reinforcement placement', desc: 'Verify placement at designated height per blueprint', inst: 'Measuring Tape', tol: 'ISO 2768 - 1 Grade C' },
+                { cat: 'Frame', req: 'Frame flatness & cleanliness', desc: 'Verify frame flatness and visually inspect for cleanliness', inst: 'Spirit Level', tol: '1 mm/m' },
+                { cat: 'Welding', req: 'Seam / structural welds without interference', desc: 'Use support image as reference guide', inst: 'Visual', tol: 'None' },
+                { cat: 'Tank Interior', req: 'Tank clearance measurements', desc: 'Verify internal measurements per blueprint and diagonal corners', inst: 'Measuring Tape', tol: 'ISO 2768 - 1 Grade C' }
+            ],
+            'Painting': [
+                { cat: 'Paint Finish', req: 'Accumulations, runs or spatter', desc: 'Zero presence allowed', inst: 'Visual', tol: 'None' },
+                { cat: 'Paint Scheme', req: 'Average coating thickness per face', desc: 'Measure at highlighted areas shown in reference guide', inst: 'Coating Thickness Gauge', tol: '- 0% + 20%' }
+            ],
+            'Markings': [
+                { cat: 'Marking Finish', req: 'No surrounding smudges', desc: 'All markings must be free of surrounding smudges or stains', inst: 'Visual', tol: 'None' },
+                { cat: 'Marking Location', req: 'Center of gravity & shipping marks', desc: 'Correct positioning of center of gravity markings', inst: 'Measuring Tape', tol: 'ISO 2768 - 1 Grade C' },
+                { cat: 'Complete Markings', req: 'HV (High Voltage) markings', desc: 'Verify all HV markings are complete', inst: 'Visual', tol: 'None' }
+            ]
+        };
+
+        // Global view mode state
+        let currentMainView = 'tablet';
+        
+        // Step simulator states
+        let currentStep = 1;
+        let selectedProcess = 'Pre-assembly';
+        let timerSeconds = 872;
+        let timerInterval = null;
+        let isPaused = false;
+        let photoTaken = false;
+
+        // Chart instances
+        let bottleneckChartInstance = null;
+        let tankTypeChartInstance = null;
+
+        // Mock Web OT Database
+        const masterWorkOrders = [
+            {
+                id: 'WO-2026-0891',
+                type: 'Medium Tank Type B (2,500L)',
+                blueprint: 'BLUEPRINT PE-402',
+                quantity: 12,
+                supervisor: 'Eng. Roberto Silva',
+                status: 'WIP',
+                progress: 66,
+                startDate: '08-FEB-2026 16:06',
+                endDate: '09-FEB-2026 16:55',
+                processes: [
+                    { id: 'p1', name: 'Pre-assembly', operator: 'Carlos Mendoza', qty: '12 / 12', status: 'Complete', progress: 100, time: '45 min (Target 45m)', audit: [
+                        { q: 'Panel support positioning', time: '16:06:00 - 16:15:00', val: 'Compliant', status: 'Passed', pts: '+3 pts' },
+                        { q: 'Bushing hole dimensions', time: '16:15:00 - 16:58:00', val: 'ISO 2768 OK', status: 'Passed', pts: '0 pts' }
+                    ]},
+                    { id: 'p2', name: 'Structure Assembly', operator: 'Luis Alfonso Reyes', qty: '8 / 12', status: 'WIP', progress: 75, time: '57 min (Target 60m)', audit: [
+                        { q: 'Frame flatness & cleanliness', time: '17:00:00 - 17:30:00', val: '1 mm/m OK', status: 'Passed', pts: '+3 pts' },
+                        { q: 'Tank interior clearance', time: '17:30:00 - 17:44:00', val: 'Verified', status: 'Passed', pts: '+2 pts' }
+                    ]},
+                    { id: 'p3', name: 'Epoxy Painting', operator: 'Martha Gutiérrez', qty: '0 / 12', status: 'Pending', progress: 30, time: '10 min (Target 40m)', audit: [
+                        { q: 'Average coating thickness per face', time: '--', val: 'Pending', status: 'Pending', pts: '0 pts' }
+                    ]},
+                    { id: 'p4', name: 'Markings', operator: 'Jorge Ramírez', qty: '0 / 12', status: 'Pending', progress: 0, time: '0 min (Target 20m)', audit: [
+                        { q: 'HV Markings complete', time: '--', val: 'Pending', status: 'Pending', pts: '0 pts' }
+                    ]}
+                ]
+            },
+            {
+                id: 'WO-2026-0892',
+                type: 'Large Tank Type A (10,000L)',
+                blueprint: 'BLUEPRINT PG-900',
+                quantity: 2,
+                supervisor: 'Eng. Fernando Ruiz',
+                status: 'Quality Issue',
+                progress: 40,
+                startDate: '06-FEB-2026 18:50',
+                endDate: '20-FEB-2026 18:00',
+                processes: [
+                    { id: 'p21', name: 'Plate Pre-assembly', operator: 'Carlos Mendoza', qty: '2 / 2', status: 'Complete', progress: 100, time: '1.8 hrs (Target 1.5h)', audit: [
+                        { q: 'Bushing holes', time: '18:50 - 20:38', val: 'Compliant', status: 'Passed', pts: '+3 pts' }
+                    ]},
+                    { id: 'p22', name: 'General Assembly', operator: 'Luis Alfonso Reyes', qty: '1 / 2', status: 'Failed', progress: 50, time: '6.2 hrs (Target 5.0h)', audit: [
+                        { q: 'Frame flatness', time: '20:40 - 02:50', val: 'Deviation > 1mm/m', status: 'Failed', pts: '-4 pts' }
+                    ]}
+                ]
+            }
+        ];
+
+        let selectedOtId = 'WO-2026-0891';
+        let selectedProcessId = 'p1';
+
+        function renderDynamicChecklist() {
+            const tbody = document.getElementById('dynamic-checklist-tbody');
+            const title = document.getElementById('process-checklist-title');
+            if (!tbody) return;
+
+            const proc = selectedProcess || 'Pre-assembly';
+            title.innerText = proc;
+
+            const items = processChecklistData[proc] || processChecklistData['Pre-assembly'];
+
+            tbody.innerHTML = items.map((item, index) => {
+                return `
+                    <tr class="hover:bg-slate-900/50 transition">
+                        <td class="p-2 font-semibold text-white">
+                            <div>${item.cat}</div>
+                            <div class="text-[10px] text-siemens-teal">${item.req}</div>
+                        </td>
+                        <td class="p-2 text-[11px] text-slate-300">${item.desc}</td>
+                        <td class="p-2">
+                            <div class="text-[10px] text-slate-400"><i class="fa-solid fa-ruler-combined text-amber-400 mr-1"></i>${item.inst}</div>
+                            <div class="text-[10px] text-emerald-400 font-mono"><i class="fa-solid fa-bullseye text-emerald-400 mr-1"></i>${item.tol}</div>
+                        </td>
+                        <td class="p-2 text-center">
+                            <input type="text" oninput="validateChecklistInputs()" placeholder="Value..." class="checklist-value-input w-24 bg-slate-950 border border-slate-700 focus:border-siemens-teal text-white text-xs px-2 py-1 rounded text-center focus:outline-none">
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+
+            validateChecklistInputs();
+        }
+
+        function validateChecklistInputs() {
+            const inputs = document.querySelectorAll('.checklist-value-input');
+            let allFilled = true;
+            inputs.forEach(input => {
+                if (!input.value.trim()) {
+                    allFilled = false;
+                }
+            });
+
+            const btn = document.getElementById('btn-complete-step-4');
+            if (allFilled && photoTaken) {
+                btn.disabled = false;
+                btn.classList.remove('bg-slate-700', 'text-slate-400', 'cursor-not-allowed');
+                btn.classList.add('bg-emerald-500', 'text-slate-950', 'hover:bg-emerald-400');
+            } else {
+                btn.disabled = true;
+                btn.classList.add('bg-slate-700', 'text-slate-400', 'cursor-not-allowed');
+                btn.classList.remove('bg-emerald-500', 'text-slate-950', 'hover:bg-emerald-400');
+            }
+        }
+
+        function switchMainView(viewName) {
+            currentMainView = viewName;
+            const tabletContainer = document.getElementById('view-tablet-container');
+            const lmsContainer = document.getElementById('view-lms-container');
+            const ordersContainer = document.getElementById('view-orders-container');
+            
+            const btnTablet = document.getElementById('mode-btn-tablet');
+            const btnLms = document.getElementById('mode-btn-lms');
+            const btnOrders = document.getElementById('mode-btn-orders');
+
+            btnTablet.classList.remove('active', 'bg-siemens-teal', 'text-slate-950', 'font-bold');
+            btnTablet.classList.add('text-slate-300');
+            btnLms.classList.remove('active', 'bg-siemens-teal', 'text-slate-950', 'font-bold');
+            btnLms.classList.add('text-slate-300');
+            btnOrders.classList.remove('active', 'bg-siemens-teal', 'text-slate-950', 'font-bold');
+            btnOrders.classList.add('text-slate-300');
+
+            tabletContainer.classList.add('hidden');
+            tabletContainer.classList.remove('flex');
+            lmsContainer.classList.add('hidden');
+            lmsContainer.classList.remove('flex');
+            ordersContainer.classList.add('hidden');
+            ordersContainer.classList.remove('flex');
+
+            if (viewName === 'tablet') {
+                tabletContainer.classList.remove('hidden');
+                tabletContainer.classList.add('flex');
+                btnTablet.classList.add('active', 'bg-siemens-teal', 'text-slate-950', 'font-bold');
+                btnTablet.classList.remove('text-slate-300');
+            } else if (viewName === 'lms') {
+                lmsContainer.classList.remove('hidden');
+                lmsContainer.classList.add('flex');
+                btnLms.classList.add('active', 'bg-siemens-teal', 'text-slate-950', 'font-bold');
+                btnLms.classList.remove('text-slate-300');
+                renderLMSCharts();
+            } else if (viewName === 'orders') {
+                ordersContainer.classList.remove('hidden');
+                ordersContainer.classList.add('flex');
+                btnOrders.classList.add('active', 'bg-siemens-teal', 'text-slate-950', 'font-bold');
+                btnOrders.classList.remove('text-slate-300');
+                renderWebOTModule();
+            }
+        }
+
+        function renderWebOTModule() {
+            renderOTMasterTable();
+            renderOTProcessesTable();
+            renderProcessAuditTable();
+        }
+
+        function renderOTMasterTable() {
+            const tbody = document.getElementById('ot-master-tbody');
+            if (!tbody) return;
+
+            const searchVal = (document.getElementById('ot-search-input')?.value || '').toLowerCase();
+
+            tbody.innerHTML = masterWorkOrders
+                .filter(ot => ot.id.toLowerCase().includes(searchVal) || ot.type.toLowerCase().includes(searchVal) || ot.blueprint.toLowerCase().includes(searchVal))
+                .map(ot => {
+                    const isSelected = ot.id === selectedOtId;
+                    let statusBadgeClass = 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+                    if (ot.status === 'Complete') statusBadgeClass = 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40';
+                    if (ot.status === 'Quality Issue') statusBadgeClass = 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+
+                    let progressBarColor = 'bg-siemens-teal';
+                    if (ot.status === 'Complete') progressBarColor = 'bg-emerald-400';
+                    if (ot.status === 'Quality Issue') progressBarColor = 'bg-rose-500';
+
+                    return `
+                        <tr onclick="selectWorkOrderRow('${ot.id}')" class="cursor-pointer transition ${isSelected ? 'bg-siemens-teal/20 border-l-4 border-l-siemens-teal font-semibold text-white' : 'hover:bg-slate-800/60'}">
+                            <td class="p-3 font-mono font-bold text-siemens-teal">${ot.id}</td>
+                            <td class="p-3 text-white font-medium">${ot.type}</td>
+                            <td class="p-3"><span class="bg-amber-500/10 text-amber-300 px-2 py-0.5 rounded text-[10px] font-bold border border-amber-500/20">${ot.blueprint}</span></td>
+                            <td class="p-3 text-center font-mono font-bold text-white">${ot.quantity} Units</td>
+                            <td class="p-3 text-slate-300">${ot.supervisor}</td>
+                            <td class="p-3 text-center">
+                                <span class="${statusBadgeClass} text-[10px] px-2.5 py-1 rounded-full border font-bold inline-block">${ot.status}</span>
+                            </td>
+                            <td class="p-3">
+                                <div class="flex items-center gap-2">
+                                    <div class="w-full bg-slate-950 rounded-full h-2">
+                                        <div class="${progressBarColor} h-2 rounded-full" style="width: ${ot.progress}%"></div>
+                                    </div>
+                                    <span class="font-mono text-[11px] text-slate-300 font-bold">${ot.progress}%</span>
+                                </div>
+                            </td>
+                            <td class="p-3 text-slate-400 font-mono text-[11px]">${ot.startDate}</td>
+                            <td class="p-3 text-slate-400 font-mono text-[11px]">${ot.endDate}</td>
+                        </tr>
+                    `;
+                }).join('');
+        }
+
+        function selectWorkOrderRow(otId) {
+            selectedOtId = otId;
+            const ot = masterWorkOrders.find(o => o.id === otId);
+            if (ot && ot.processes.length > 0) {
+                selectedProcessId = ot.processes[0].id;
+            }
+            renderWebOTModule();
+            showToastNotification(`Order ${otId} selected in Web Panel.`);
+        }
+
+        function filterOTTable() {
+            renderOTMasterTable();
+        }
+
+        function renderOTProcessesTable() {
+            const tbody = document.getElementById('ot-processes-tbody');
+            const otTitle = document.getElementById('selected-ot-title-pane2');
+            const otStatus = document.getElementById('selected-ot-status-badge');
+            const progressSummary = document.getElementById('pane2-progress-summary');
+            if (!tbody) return;
+
+            const ot = masterWorkOrders.find(o => o.id === selectedOtId);
+            if (!ot) return;
+
+            otTitle.innerText = `Process Breakdown: ${ot.id} (${ot.type})`;
+            otStatus.innerText = ot.status;
+            progressSummary.innerText = `${ot.progress}% Overall Progress`;
+
+            tbody.innerHTML = ot.processes.map(proc => {
+                const isSelected = proc.id === selectedProcessId;
+                let statusBadge = 'bg-slate-800 text-slate-400';
+                if (proc.status === 'Complete') statusBadge = 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+                if (proc.status === 'WIP') statusBadge = 'bg-amber-500/20 text-amber-300 border border-amber-500/30';
+                if (proc.status === 'Failed') statusBadge = 'bg-rose-500/20 text-rose-300 border border-rose-500/30';
+
+                return `
+                    <tr onclick="selectProcessRow('${proc.id}')" class="cursor-pointer transition ${isSelected ? 'bg-indigo-500/20 border-l-4 border-l-indigo-400 font-semibold text-white' : 'hover:bg-slate-800/60'}">
+                        <td class="p-2.5 font-semibold text-white">${proc.name}</td>
+                        <td class="p-2.5 text-slate-300">${proc.operator}</td>
+                        <td class="p-2.5 text-center font-mono font-bold">${proc.qty}</td>
+                        <td class="p-2.5 text-center">
+                            <span class="${statusBadge} text-[10px] px-2 py-0.5 rounded font-bold">${proc.status}</span>
+                        </td>
+                        <td class="p-2.5">
+                            <div class="flex items-center gap-1.5">
+                                <div class="w-16 bg-slate-950 rounded-full h-1.5">
+                                    <div class="bg-siemens-teal h-1.5 rounded-full" style="width: ${proc.progress}%"></div>
+                                </div>
+                                <span class="font-mono text-[10px]">${proc.progress}%</span>
+                            </div>
+                        </td>
+                        <td class="p-2.5 text-right font-mono text-[11px] text-amber-400 font-semibold">${proc.time}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function selectProcessRow(procId) {
+            selectedProcessId = procId;
+            renderOTProcessesTable();
+            renderProcessAuditTable();
+        }
+
+        function renderProcessAuditTable() {
+            const tbody = document.getElementById('process-audit-tbody');
+            const procTitle = document.getElementById('selected-process-title-pane3');
+            const qualityStatus = document.getElementById('pane3-quality-status');
+            if (!tbody) return;
+
+            const ot = masterWorkOrders.find(o => o.id === selectedOtId);
+            if (!ot) return;
+
+            const proc = ot.processes.find(p => p.id === selectedProcessId) || ot.processes[0];
+            if (!proc) return;
+
+            procTitle.innerText = `Inspection Details: ${proc.name} (${proc.operator})`;
+            qualityStatus.innerText = proc.status === 'Failed' ? 'Failed / Rework' : 'Passed';
+            qualityStatus.className = proc.status === 'Failed' 
+                ? 'bg-rose-500/20 text-rose-300 text-[10px] px-2.5 py-0.5 rounded font-bold border border-rose-500/40' 
+                : 'bg-emerald-500/20 text-emerald-400 text-[10px] px-2.5 py-0.5 rounded font-bold border border-emerald-500/40';
+
+            tbody.innerHTML = proc.audit.map(item => {
+                let badgeClass = 'bg-emerald-500/20 text-emerald-400';
+                if (item.status === 'Failed') badgeClass = 'bg-rose-500/20 text-rose-300';
+                if (item.status === 'Pending') badgeClass = 'bg-slate-800 text-slate-400';
+
+                return `
+                    <tr class="hover:bg-slate-800/40 transition">
+                        <td class="p-2.5 font-medium text-slate-200">${item.q}</td>
+                        <td class="p-2.5 font-mono text-[11px] text-slate-400">${item.time}</td>
+                        <td class="p-2.5 text-center font-semibold text-white">${item.val}</td>
+                        <td class="p-2.5 text-center">
+                            <span class="${badgeClass} text-[10px] px-2 py-0.5 rounded font-bold">${item.status}</span>
+                        </td>
+                        <td class="p-2.5 text-right font-mono font-bold ${item.pts.includes('-') ? 'text-rose-400' : 'text-emerald-400'}">${item.pts}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function updateWebOTData() {
+            showToastNotification('WO data synchronized with central database.');
+            renderWebOTModule();
+        }
+
+        function showToastNotification(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `pointer-events-auto bg-slate-900 border ${type === 'danger' ? 'border-rose-500 text-rose-300' : 'border-siemens-teal text-slate-200'} px-4 py-3 rounded-xl shadow-2xl text-xs flex items-center gap-3 animate-fade-in`;
+            toast.innerHTML = `
+                <i class="${type === 'danger' ? 'fa-solid fa-circle-exclamation text-rose-400' : 'fa-solid fa-circle-check text-siemens-teal'} text-base"></i>
+                <span>${message}</span>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.remove();
+            }, 3500);
+        }
+
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('current-time-display').innerText = now.toTimeString().split(' ')[0];
+        }, 1000);
+
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerInterval = setInterval(() => {
+                if (!isPaused) {
+                    timerSeconds++;
+                    const hrs = String(Math.floor(timerSeconds / 3600)).padStart(2, '0');
+                    const mins = String(Math.floor((timerSeconds % 3600) / 60)).padStart(2, '0');
+                    const secs = String(timerSeconds % 60).padStart(2, '0');
+                    document.getElementById('timer-display').innerText = `${hrs}:${mins}:${secs}`;
+                }
+            }, 1000);
+        }
+
+        function goToStep(stepNum) {
+            currentStep = stepNum;
+
+            if (stepNum === 4) {
+                renderDynamicChecklist();
+            }
+
+            for (let i = 1; i <= 6; i++) {
+                const el = document.getElementById(`step-${i}`);
+                if (el) {
+                    el.classList.add('hidden');
+                    el.classList.remove('flex');
+                }
+                const nav = document.getElementById(`step-nav-${i}`);
+                if (nav) {
+                    nav.classList.remove('border-siemens-teal', 'bg-siemens-teal/10', 'text-siemens-teal');
+                    nav.classList.add('border-slate-800', 'text-slate-400');
+                }
+            }
+
+            const activeEl = document.getElementById(`step-${stepNum}`);
+            if (activeEl) {
+                activeEl.classList.remove('hidden');
+                activeEl.classList.add('flex');
+            }
+
+            const activeNav = document.getElementById(`step-nav-${stepNum}`);
+            if (activeNav) {
+                activeNav.classList.add('border-siemens-teal', 'bg-siemens-teal/10', 'text-siemens-teal');
+                activeNav.classList.remove('border-slate-800', 'text-slate-400');
+            }
+        }
+
+        function selectProcess(procName, element) {
+            selectedProcess = procName;
+            document.querySelectorAll('.process-card').forEach(c => {
+                c.classList.remove('border-siemens-teal', 'bg-siemens-teal/10');
+            });
+            element.classList.add('border-siemens-teal', 'bg-siemens-teal/10');
+
+            const btn = document.getElementById('btn-to-step-2');
+            btn.disabled = false;
+            btn.classList.remove('bg-slate-700', 'text-slate-400', 'cursor-not-allowed');
+            btn.classList.add('bg-siemens-teal', 'text-slate-950', 'hover:bg-siemens-accent');
+        }
+
+        function checkStep2Valid() {
+            const opSelect = document.getElementById('operator-select').value;
+            const woInput = document.getElementById('work-order-input').value;
+            const badge = document.getElementById('user-badge');
+
+            if (opSelect) {
+                badge.innerHTML = `
+                    <div class="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-lg">
+                        <i class="fa-solid fa-user-check"></i>
+                    </div>
+                    <div class="text-xs">
+                        <div class="text-white font-bold">${opSelect}</div>
+                        <div class="text-emerald-400 font-semibold">Verified Operator</div>
+                    </div>
+                `;
+            }
+
+            const btn = document.getElementById('btn-to-step-3');
+            if (opSelect && woInput.trim() !== '') {
+                btn.disabled = false;
+                btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+        }
+
+        function scanBarcodeMock() {
+            document.getElementById('work-order-input').value = 'WO-2026-0891';
+            checkStep2Valid();
+            showToastNotification('Barcode scanned successfully: WO-2026-0891');
+        }
+
+        function startTimerAndProceed() {
+            const proc = selectedProcess || 'Pre-assembly';
+            const wo = document.getElementById('work-order-input').value || 'WO-2026-0891';
+            const op = document.getElementById('operator-select').value || 'Carlos Mendoza';
+
+            document.getElementById('selected-process-display').innerText = proc;
+            document.getElementById('active-task-header').innerText = `${proc} in ${wo}`;
+            document.getElementById('active-operator-display').innerText = op.split('(')[0];
+
+            startTimer();
+            goToStep(3);
+        }
+
+        function togglePauseTask() {
+            isPaused = !isPaused;
+            const banner = document.getElementById('pause-alert-banner');
+            const btnText = document.getElementById('pause-btn-text');
+
+            if (isPaused) {
+                banner.classList.remove('hidden');
+                btnText.innerText = 'Resume Activity';
+                showToastNotification('Task paused. Time tracking stopped.');
+            } else {
+                banner.classList.add('hidden');
+                btnText.innerText = 'Pause for Reassignment';
+                showToastNotification('Task resumed. Live tracking active.');
+            }
+        }
+
+        function takePhotoMock() {
+            photoTaken = true;
+            document.getElementById('captured-photo-sim').classList.remove('hidden');
+            document.getElementById('camera-placeholder').classList.add('hidden');
+            validateChecklistInputs();
+            showToastNotification('Photo evidence saved successfully.');
+        }
+
+        function completeTaskAndProceed() {
+            if (timerInterval) clearInterval(timerInterval);
+            goToStep(5);
+        }
+
+        function approveIncomingWork() {
+            const btnApprove = document.getElementById('btn-approve-work');
+            btnApprove.classList.add('border-emerald-500', 'bg-emerald-500/20');
+            showToastNotification('Part approved. Starting next process...');
+            goToStep(6);
+        }
+
+        function reportDefectModal() {
+            document.getElementById('modal-defect-report').classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        function confirmDefectReport() {
+            closeModal('modal-defect-report');
+            
+            const carlosQualityText = document.getElementById('carlos-quality-subtotal');
+            const carlosFormula = document.getElementById('carlos-formula-display');
+            const carlosTotalScore = document.getElementById('carlos-total-score-badge');
+            
+            if (carlosQualityText) carlosQualityText.innerText = 'Quality: +14 pts';
+            if (carlosFormula) carlosFormula.innerText = '14 + (1)';
+            if (carlosTotalScore) carlosTotalScore.innerText = '+15 pts';
+            
+            showToastNotification('Defect reported. -4 pts quality penalty applied to Carlos Mendoza and rework order generated.', 'danger');
+            goToStep(6);
+        }
+
+        function renderLMSCharts() {
+            const ctx1 = document.getElementById('bottleneckChart').getContext('2d');
+            if (bottleneckChartInstance) bottleneckChartInstance.destroy();
+            bottleneckChartInstance = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: ['Pre-assembly (H-03)', 'Assembly', 'Painting', 'Markings'],
+                    datasets: [
+                        {
+                            label: 'Standard Time (Hrs)',
+                            data: [1.2, 3.5, 1.8, 0.8],
+                            backgroundColor: 'rgba(51, 65, 85, 0.8)',
+                            borderColor: '#475569',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Actual Recorded Time (Hrs)',
+                            data: [1.4, 4.8, 1.9, 0.9],
+                            backgroundColor: 'rgba(0, 190, 214, 0.8)',
+                            borderColor: '#00bed6',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#cbd5e1', font: { family: 'Inter', size: 11 } } }
+                    }
+                }
+            });
+
+            const ctx2 = document.getElementById('tankTypeChart').getContext('2d');
+            if (tankTypeChartInstance) tankTypeChartInstance.destroy();
+            tankTypeChartInstance = new Chart(ctx2, {
+                type: 'line',
+                data: {
+                    labels: ['Small Tank (500L)', 'Medium Tank (2,500L)', 'Large Tank (10,000L)'],
+                    datasets: [{
+                        label: 'Total Manufacturing Time (Hours)',
+                        data: [1.5, 18.5, 338.0],
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                        fill: true,
+                        tension: 0.3,
+                        pointBackgroundColor: '#00e5ff',
+                        pointRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } },
+                        x: { grid: { color: '#1e293b' }, ticks: { color: '#94a3b8' } }
+                    },
+                    plugins: {
+                        legend: { labels: { color: '#cbd5e1', font: { family: 'Inter', size: 11 } } }
+                    }
+                }
+            });
+        }
+
+        function updateDashboardMetrics() {
+            const size = document.getElementById('filter-tank-size').value;
+            const avgOt = document.getElementById('kpi-avg-ot');
+            const avgTank = document.getElementById('kpi-avg-large-tank');
+
+            if (size === 'small') {
+                avgOt.innerText = '0.8 Days';
+                avgTank.innerText = '1.2 Hours';
+            } else if (size === 'medium') {
+                avgOt.innerText = '2.1 Days';
+                avgTank.innerText = '18.5 Hours';
+            } else if (size === 'large') {
+                avgOt.innerText = '15.0 Days';
+                avgTank.innerText = '14.1 Days';
+            } else {
+                avgOt.innerText = '4.2 Days';
+                avgTank.innerText = '14.1 Days';
+            }
+            showToastNotification('Filter applied to LMS Dashboard');
+        }
+
+        function resetFlow() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerSeconds = 872;
+            isPaused = false;
+            photoTaken = false;
+            
+            const photoSim = document.getElementById('captured-photo-sim');
+            const camPlaceholder = document.getElementById('camera-placeholder');
+            const pauseBanner = document.getElementById('pause-alert-banner');
+            
+            if (photoSim) photoSim.classList.add('hidden');
+            if (camPlaceholder) camPlaceholder.classList.remove('hidden');
+            if (pauseBanner) pauseBanner.classList.add('hidden');
+            
+            goToStep(1);
+            showToastNotification('Simulation reset');
+        }
+
+        window.onload = function() {
+            goToStep(1);
+        };
+    </script>
+</body>
+</html>

@@ -240,7 +240,9 @@ def scenario_progress(inp, snapshot, now, rows, baseline, committed=(), temporar
             area = _logged_in_area(inp, k, name)
             if area is not None and area != dest:
                 hours += (times[k + 1] - times[k]) * 24
-        gains[dest] += credit * hours
+        # A destination allocation belongs to the truck selected by the
+        # supervisor. Legacy records without ``shipment`` remain worktype-wide.
+        gains[(move.get('shipment'), dest)] += credit * hours
         notes.append(f"{name}: {credit:.1f} lines/h credited in WT {dest} for {hours:.2f} h since "
                      f"{serial_to_datetime(times[s0]):%H:%M} = {credit * hours:.1f} lines")
         picks = inp.tc[(inp.tc.RESOURCENAME == name) & (inp.tc.MOVED_TO_C_AT > times[s0] + EPS)
@@ -257,7 +259,7 @@ def scenario_progress(inp, snapshot, now, rows, baseline, committed=(), temporar
             continue
         hours = (now - times[s0]) * 24
         lines = int(alloc['count']) * assumed['cautious'] * hours
-        gains[dest] += lines
+        gains[(alloc.get('shipment'), dest)] += lines
         notes.append(f"{alloc['count']} temporary operator(s): {assumed['cautious']:.1f} lines/h each in "
                      f"WT {dest} for {hours:.2f} h = {lines:.1f} lines")
     owners = _line_owners(inp, now) if reopen else {}
@@ -283,9 +285,10 @@ def scenario_progress(inp, snapshot, now, rows, baseline, committed=(), temporar
                 row['scenario_reopened'] += 1
         notes.append(f"WT {area}: {len(picked)} line(s) picked by {', '.join(sorted(movers))} after the move; "
                      f"remaining operators had spare capacity for {spare}; {backlog} treated as still open")
-    for dest, gained in gains.items():
+    for (shipment, dest), gained in gains.items():
         remaining = int(gained + 1e-9)
-        for row in sorted((r for r in rows if r['worktype'] == dest and r['open'] > 0),
+        for row in sorted((r for r in rows if r['worktype'] == dest and r['open'] > 0
+                           and (shipment is None or r['shipment'] == shipment)),
                           key=lambda r: (r['deadline'], r['shipment'])):
             take = min(row['open'], remaining)
             row['open'] -= take
@@ -350,6 +353,7 @@ def build_state(inp, base_worktypes, trucks, snapshot, loading_overrides, commit
         row['ahead'] = sum(open_index.get((s, row['worktype']), 0) for s, d in deadlines.items()
                            if le(d['deadline'], row['deadline']))
     committed_applied = []
+    destination_credits = []
     skipped = []
     rates = {w: v.copy() for w, v in baseline.items()}
     used = set()
@@ -380,7 +384,12 @@ def build_state(inp, base_worktypes, trucks, snapshot, loading_overrides, commit
             skipped.append(name)
             continue
         rates[source] = outcome
+        before = rates[dest].copy()
         _add_destination(rates[dest], dest, dst, rows)
+        destination_credits.append(dict(
+            shipment=move.get('shipment'), dest=dest,
+            rate=(rates[dest]['rate'] or 0) - (before['rate'] or 0),
+            low=(rates[dest]['low'] or 0) - (before['low'] or 0), resources=1))
         committed_applied.append(move)
         used.add(name)
     # v12: confirmed temporary operators (session only), added after confirmed reallocations.
@@ -394,14 +403,29 @@ def build_state(inp, base_worktypes, trucks, snapshot, loading_overrides, commit
         if count <= 0 or not assumed['pace']:
             temporaries_skipped.append(alloc)
             continue
+        before = rates[dest].copy()
         for _ in range(count):
             _add_destination(rates[dest], dest, assumed['pace'], rows)
+        destination_credits.append(dict(
+            shipment=alloc.get('shipment'), dest=dest,
+            rate=(rates[dest]['rate'] or 0) - (before['rate'] or 0),
+            low=(rates[dest]['low'] or 0) - (before['low'] or 0), resources=count))
         temporaries_applied.append(dict(alloc, pace=assumed['pace'], cautious_pace=assumed['cautious']))
+    row_rates = {}
     for row in rows:
-        row.update(_single_row_result(row, rates[row['worktype']]['rate'],
-                                      rates[row['worktype']]['low'], now))
-        row.update(rate=rates[row['worktype']]['rate'], low_rate=rates[row['worktype']]['low'],
-                   resources=rates[row['worktype']]['resources'])
+        team = rates[row['worktype']].copy()
+        # Destination capacity is dedicated to the selected truck. Removing an
+        # operator from a source worktype remains global because that genuinely
+        # changes availability for every truck sharing the source queue.
+        for credit in destination_credits:
+            if (credit['dest'] == row['worktype'] and credit['shipment'] is not None
+                    and credit['shipment'] != row['shipment']):
+                team['rate'] = max(0.0, team['rate'] - credit['rate'])
+                team['low'] = max(0.0, (team['low'] or 0) - credit['low'])
+                team['resources'] -= credit['resources']
+        row_rates[(row['shipment'], row['worktype'])] = team
+        row.update(_single_row_result(row, team['rate'], team['low'], now))
+        row.update(rate=team['rate'], low_rate=team['low'], resources=team['resources'])
     truck_view = []
     for ship, truck in by_ship.items():
         ours = [r for r in rows if r['shipment'] == ship]
@@ -428,7 +452,7 @@ def build_state(inp, base_worktypes, trucks, snapshot, loading_overrides, commit
                                slack_minutes=(round((deadlines[ship]['deadline']-finish)*1440, 1)
                                               if finish is not None else None)))
     return dict(snapshot=int(snapshot), now=now, active=active, stats=stats,
-                baseline=baseline, rates=rates, rows=rows, trucks=truck_view,
+                baseline=baseline, rates=rates, row_rates=row_rates, rows=rows, trucks=truck_view,
                 names=names, applied=committed_applied, skipped=skipped,
                 temporaries_applied=temporaries_applied, temporaries_skipped=temporaries_skipped,
                 scenario_notes=scenario_notes,
@@ -546,6 +570,21 @@ def truck_projection(state, rates, shipment):
     return dict(status=status, finish=finish, deadline=rows[0]['deadline'], rows=ev)
 
 
+def shipment_rates(state, shipment):
+    """Return the effective per-worktype teams for one destination truck.
+
+    Confirmed destination additions are truck-scoped. Global source removals are
+    already present in ``state['rates']`` and therefore remain visible here.
+    """
+    rates = {w: r.copy() for w, r in state['rates'].items()}
+    for row in state['rows']:
+        if row['shipment'] == shipment:
+            team = state.get('row_rates', {}).get((shipment, row['worktype']))
+            if team is not None:
+                rates[row['worktype']] = team.copy()
+    return rates
+
+
 def recommend_minimum(inp, state, destination, shipment, selected=()):
     """Exact minimum feasible further operators from the active trained roster.
 
@@ -612,7 +651,8 @@ def recommend_minimum(inp, state, destination, shipment, selected=()):
 def preview_state(inp, state, destination, selected, shipment=None):
     """Recalculate selected moves sequentially; this pure preview never writes to disk."""
     dest = int(destination)
-    rates = {w: r.copy() for w, r in state['rates'].items()}
+    rates = (shipment_rates(state, shipment) if shipment else
+             {w: r.copy() for w, r in state['rates'].items()})
     baseline = [r for r in state['rows'] if r['worktype'] == dest and r['open']]
     steps = []
     used = set()

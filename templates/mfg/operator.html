@@ -1,0 +1,60 @@
+{% extends 'mfg/base.html' %}
+{% block title %}Operator tablet{% endblock %}{% block eyebrow %}SHOP FLOOR / OPERATOR MODE{% endblock %}
+{% block content %}
+<div class="page-heading"><div><div class="eyebrow">PRODUCTION EXECUTION · LINKED DEMO RECORDS</div><h1>Operator console</h1><p>Identify a work center, worker and physical unit; track work; submit CTQ results; review the next-stage handover.</p></div><span class="source-pin big">LIVE CLOCKS · SYNTHETIC WORKERS</span></div>
+<div class="constraint blue-bg"><strong>Two separate time bases.</strong> This console saves real UTC task events for the synthetic units. The scenario selector above replays the fixed PDF demonstration only; recording a task does <strong>not</strong> recalibrate its forecast or prove historical performance. Quality and skills are independently checked.</div>
+<div class="shop-steps" aria-label="Workflow stages"><span>1 · Process</span><span>2 · Operator &amp; WO</span><span>3 · Timer</span><span>4 · CTQ</span><span>5 · Receiving check</span><span>6 · Review</span></div>
+<div class="content-grid">
+<section class="panel span-main">
+ <div class="panel-head"><div><h2>1–2 · Select process, operator &amp; work order</h2><p>One physical unit is always linked to its existing work order.</p></div></div>
+ <form method="get" action="{{url_for('operator_console')}}" class="shop-form-inline">
+  <label>Process / work center<select name="wc" onchange="this.form.submit()">{% for c in centers %}<option value="{{c.id}}" {% if selected_wc==c.id %}selected{% endif %}>{{c.id}} — {{c.name}} ({{c.type}})</option>{% endfor %}</select></label>
+  <label>Operator (demo-qualified)<select name="worker" onchange="this.form.submit()">{% for w in wc_workers %}<option value="{{w.id}}" {% if w.id==selected_worker %}selected{% endif %}>{{w.name}} · {{w.id}}</option>{% endfor %}</select></label>
+  <label>Physical unit / WO<select name="unit" onchange="this.form.submit()">{% for u in selectable_units %}<option value="{{u.id}}" {% if u.id==selected_unit %}selected{% endif %}>{{u.id}} · {{u.order}} · {{u.status}}</option>{% endfor %}</select></label>
+  <button type="submit" class="btn btn-outline">Update selection</button>
+ </form>
+ {% if not active_task %}
+ <form method="post" action="{{url_for('start_shop_task')}}" class="shop-actions">
+  <input type="hidden" name="csrf_token" value="{{csrf_token}}"><input type="hidden" name="wc" value="{{selected_wc}}"><input type="hidden" name="worker_id" value="{{selected_worker}}"><input type="hidden" name="unit_id" value="{{selected_unit}}">
+  <button class="btn btn-primary" type="submit" {% if not selected_worker or not selected_unit %}disabled{% endif %}>▶ Start tracked task</button><span class="muted">A worker may have only one active or paused assignment. Several workers may be on the same unit.</span>
+ </form>
+ {% else %}
+ <div class="shop-task-hero"><div><span class="eyebrow">3 · ACTIVE TASK #{{active_task.task_id}}</span><h2>{{active_task.unit_id}} · {{active_task.wc}}</h2><p>{{active_task.worker_name}} · WO {{active_task.work_order}}</p></div><div><span class="shop-clock" data-seconds="{{active_task.seconds}}" data-running="{{'true' if active_task.status=='RUNNING' else 'false'}}">{{'%02d:%02d:%02d'|format(active_task.seconds//3600,(active_task.seconds//60)%60,active_task.seconds%60)}}</span><span class="status-chip">{{active_task.status}}</span></div></div>
+ <div class="shop-actions">
+ {% if active_task.status=='RUNNING' %}
+ <form method="post" action="{{url_for('shop_task_transition',task_id=active_task.task_id,action='pause')}}"><input type="hidden" name="csrf_token" value="{{csrf_token}}"><button type="submit" class="btn btn-outline">⏸ Pause tracked work</button></form>
+ <form method="post" action="{{url_for('shop_task_transition',task_id=active_task.task_id,action='finish')}}"><input type="hidden" name="csrf_token" value="{{csrf_token}}"><button type="submit" class="btn btn-primary">✓ Finish task (not quality release)</button></form>
+ {% elif active_task.status=='PAUSED' %}
+ <form method="post" action="{{url_for('shop_task_transition',task_id=active_task.task_id,action='resume')}}"><input type="hidden" name="csrf_token" value="{{csrf_token}}"><button type="submit" class="btn btn-primary">▶ Resume task</button></form>
+ {% endif %}
+ </div>
+ {% endif %}
+ <div class="divider-soft"></div>
+ <div class="panel-head"><div><h2>4 · Technical self-check</h2><p>Each question is sourced from the CTQ workbook. A completed timer never automatically passes inspection.</p></div></div>
+ {% if selected_unit and stage_checks %}
+ <div class="shop-table-wrap"><table class="shop-table"><thead><tr><th>Source check</th><th>Requirement</th><th>Answer / tolerance</th><th>Saved result</th><th>Action</th></tr></thead><tbody>
+ {% for check in stage_checks %}<tr><td><strong>{{check.check_id}}</strong><br><small>Row {{check.source_row}}</small></td><td>{{check.requirement}}<br><small>{{check.question}}</small></td><td>{{check.answer_type}}<br><small>{{check.tolerance or 'Reference only'}}</small></td><td><span class="status-chip">{{check.recorded.verdict if check.recorded else 'NOT RECORDED'}}</span></td><td><a class="text-link" href="{{url_for('inspection_form',unit_id=selected_unit,check_id=check.check_id)}}">Inspect →</a></td></tr>{% endfor %}
+ </tbody></table></div>
+ {% else %}<p class="muted">Select a current unit with an applicable inspection template.</p>{% endif %}
+</section>
+<section class="panel">
+ <div class="panel-head"><div><h2>3 · Workers in progress</h2><p>Separate clocks per person, including shared unit work.</p></div></div>
+ <div class="shop-scroll">{% for task in tasks %}<div class="shop-small-row"><strong>{{task.worker_name}}</strong><span>{{task.unit_id}} · {{task.wc}}<br><small>{{task.status}} · {{task.seconds//60}} min active</small></span></div>{% else %}<p class="muted">No operator tasks have been started.</p>{% endfor %}</div>
+ <div class="divider-soft"></div><h3>Report a production issue</h3><p class="muted">An issue becomes an unassigned report for review. It does not automatically create rework or penalize anyone.</p>
+ {% if selected_worker and selected_unit %}<form method="post" action="{{url_for('shop_report_issue')}}" class="shop-form"><input type="hidden" name="csrf_token" value="{{csrf_token}}"><input type="hidden" name="unit_id" value="{{selected_unit}}"><input type="hidden" name="wc" value="{{selected_wc}}"><input type="hidden" name="worker_id" value="{{selected_worker}}"><label for="issue-detail">Issue description<textarea id="issue-detail" name="detail" minlength="5" maxlength="1200" rows="3" required placeholder="What did you observe?"></textarea></label><button type="submit" class="btn btn-outline">Flag issue for review</button></form>{% endif %}
+</section>
+<section class="panel span-main">
+ <div class="panel-head"><div><h2>5 · Incoming quality inspection</h2><p>At a downstream station, record receipt of the same physical unit and whether a defect was observed.</p></div></div>
+ {% if selected_unit and selected_wc in ['WC2','WC3','WC4','WC6','WC8'] and selected_worker %}
+ <form method="post" action="{{url_for('incoming_shop_inspection')}}" class="shop-form-inline"><input type="hidden" name="csrf_token" value="{{csrf_token}}"><input type="hidden" name="unit_id" value="{{selected_unit}}"><input type="hidden" name="worker_id" value="{{selected_worker}}"><input type="hidden" name="wc" value="{{selected_wc}}">
+ <label>Incoming decision<select name="outcome" required><option value="">Choose result</option><option value="ACCEPTED">All good — received</option><option value="DEFECT_REPORTED">Report defect — hold for review</option></select></label><label class="shop-grow">Observation or defect description<input type="text" name="note" maxlength="1200" placeholder="For defects, provide at least five characters"></label><button type="submit" class="btn btn-primary">Record receipt inspection</button>
+ </form>
+ {% else %}<p class="muted">Receiving inspections are available at the downstream WC2/WC3/WC4, WC6 or WC8 station when a unit is at that stage.</p>{% endif %}
+ <div class="divider-soft"></div><h3>Recent receiving decisions</h3><div class="shop-table-wrap"><table class="shop-table"><thead><tr><th>Unit</th><th>From → to</th><th>Result</th><th>Recorded at (UTC)</th></tr></thead><tbody>{% for r in handovers %}<tr><td>{{r.unit_id}}</td><td>{{r.from_wc}} → {{r.to_wc}}</td><td>{{r.outcome}}</td><td>{{r.recorded_at[:19]}}</td></tr>{% else %}<tr><td colspan="4">No incoming inspections have been recorded.</td></tr>{% endfor %}</tbody></table></div>
+</section>
+<section class="panel span-main"><div class="panel-head"><div><h2>6 · Review outcomes and next steps</h2><p>Issue reports are tracked as open evidence; rework approval, responsibility attribution, and points settlement await separate decisions.</p></div></div>
+ <div class="shop-table-wrap"><table class="shop-table"><thead><tr><th>Unit</th><th>Station</th><th>Issue</th><th>Status</th></tr></thead><tbody>{% for d in defects %}<tr><td><a class="text-link" href="{{url_for('unit_detail',unit_id=d.unit_id)}}">{{d.unit_id}}</a></td><td>{{d.wc}}</td><td>{{d.detail}}</td><td><span class="status-chip">{{d.status}} · Unattributed</span></td></tr>{% else %}<tr><td colspan="4">No issues reported.</td></tr>{% endfor %}</tbody></table></div>
+ <div class="shop-actions"><a href="{{url_for('work_orders')}}" class="btn btn-outline">Open WO traceability →</a><a href="{{url_for('lms_dashboard')}}" class="btn btn-primary">Open LMS supervision →</a></div>
+</section>
+</div>
+{% endblock %}

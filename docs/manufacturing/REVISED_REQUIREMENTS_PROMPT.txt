@@ -1,0 +1,945 @@
+# Project: Transform the Truck-Based Web App into a Tank Manufacturing, Work Center Management, and Quality Inspection System
+
+## Objective
+
+Analyze both provided files thoroughly and transform the existing Flask web application from a truck/shipment-oriented labor management and Estimated Time of Completion (ETC) system into a tank manufacturing, work center management, production planning, and quality inspection system.
+
+The solution is being proposed to **Siemens Energy** as a professional, customer-facing proof of concept (PoC).
+
+The objective is not simply to rename trucks as tanks. Understand the existing application, extract the actual manufacturing and inspection requirements from the provided files, and adapt the UI, backend, database, production workflow, calculations, and workforce management logic consistently.
+
+The final application should demonstrate how manufacturing managers and supervisors can monitor tank production, track Critical-to-Quality (CTQ) requirements, identify bottlenecks, optimize workforce allocation, estimate production completion times, and make informed operational decisions.
+
+If information required to build a functional demonstration is missing, generate logically consistent synthetic data. Clearly distinguish source-defined information, derived calculations, and synthetic demo assumptions.
+
+---
+
+## 1. Files to Analyze
+
+### File 1: `EN_Siemens_CTQ_Guide 1.xlsx`
+
+Treat this workbook as the primary source of information for the manufacturing and quality requirements it explicitly defines.
+
+It may contain information about:
+
+- Work centers and production areas.
+- Equipment and production stages.
+- Inspection templates and checklists.
+- CTQ categories and inspection questions.
+- Answer types and negative-answer definitions.
+- Help text and evidence requirements.
+- Measurement instruments and units.
+- Tolerances, acceptance criteria, and validation rules.
+- Relationships between work centers, equipment, inspection templates, and questions.
+
+Inspect every worksheet, including hidden worksheets where accessible, and identify the workbook structure, relationships, and relevant source information.
+
+### File 2: `SMD-main-updated-20261014-v14.zip`
+
+Treat this archive as the source for the existing web application.
+
+Inspect:
+
+- Project directory structure and application entry points.
+- Flask routes and APIs.
+- HTML templates, JavaScript, CSS, charts, and navigation.
+- Database schema, models, and relationships.
+- Existing datasets and data import workflows.
+- Truck-related calculations, ETC logic, cutoff rules, statuses, and allocation workflows.
+- Operator performance, productivity, labor hours, and resource allocation logic.
+- Configuration files, environment variables, dependencies, tests, and deployment requirements.
+- Existing documentation and reusable business logic.
+
+Identify which components should be reused, adapted, migrated, or replaced.
+
+**Important:** Do not begin with blind global replacements. First understand the current application and the manufacturing requirements.
+
+---
+
+## 2. Analyze Both Files Before Implementation
+
+### A. Excel workbook analysis
+
+Extract and document:
+
+1. Every work center identifier, specifically WC1 through WC8.
+2. The production stage and equipment type associated with each work center.
+3. All inspection templates and their relationships to work centers.
+4. CTQ categories, questions, answer types, and negative-answer definitions.
+5. Help text, required evidence, and supporting documentation requirements.
+6. Measurement instruments, units, tolerances, and acceptance criteria.
+7. Mandatory versus optional questions, where defined.
+8. Validation rules and inspection pass/fail conditions.
+9. Relationships between Tanks, Covers, Accessories, and other components, where specified.
+10. Production sequence or work center dependencies, where available.
+
+Create a complete WC1–WC8 mapping table based on the workbook.
+
+Do not assume that the first five work centers represent the entire manufacturing process. Do not invent the actual mappings of WC6–WC8 if the information can be extracted from the workbook.
+
+If the workbook does not define a required relationship, identify the missing information explicitly.
+
+### B. Existing application analysis
+
+Document:
+
+- Existing architecture and data flow.
+- Existing database tables, fields, and relationships.
+- Flask endpoints and frontend-to-backend communication.
+- Current dashboard metrics and their formulas.
+- Existing ETC, cutoff, and status calculations.
+- Operator allocation and productivity logic.
+- Data import, transformation, and configuration processes.
+- Existing dependencies and deployment requirements.
+- Existing tests and potential regression risks.
+
+Identify all truck-specific assumptions that are incompatible with manufacturing.
+
+### C. Initial impact analysis
+
+Before making implementation changes, provide a concise impact analysis covering:
+
+| Area | What to identify |
+|---|---|
+| Frontend | Pages, cards, charts, tables, labels, and workflows requiring changes |
+| Backend | Routes, APIs, calculations, and business logic requiring adaptation |
+| Database | Tables, relationships, fields, migrations, and compatibility considerations |
+| Manufacturing | Tank lifecycle, work centers, work orders, production stages, and dependencies |
+| Quality | Inspection templates, CTQ validation, tolerances, evidence, and traceability |
+| Workforce | Operator availability, eligibility, productivity, allocation, and workload |
+| Data | Existing source data, missing fields, synthetic data requirements, and assumptions |
+| Deployment | Dependencies, environment configuration, startup, and hosting requirements |
+| Testing | Existing test coverage, new tests, and regression risks |
+
+Provide the proposed architecture and data flow before implementation. Then proceed with the implementation without waiting for approval unless a genuinely blocking ambiguity prevents safe or meaningful progress.
+
+---
+
+## 3. Work Center and Equipment Mapping
+
+Treat WC1, WC2, WC3, WC4, WC5, WC6, WC7, and WC8 as eight distinct work center identifiers.
+
+Display them as work centers or production areas throughout the application.
+
+### Requirements
+
+- Preserve the original WC codes exactly.
+- Display both the WC code and its human-readable production stage.
+- Maintain an explicit mapping between source identifiers, UI labels, and equipment types.
+- Do not confuse WC identifiers with existing numeric `WORKTYPE` values in the current application.
+- Preserve distinctions between Tanks, Covers, Accessories, and other components identified in the source files.
+- Make work center configuration reusable across dashboards, inspection forms, workforce planning, reporting, and navigation.
+- Support filtering and reporting by WC1–WC8.
+- Use the correct inspection template for each work center.
+
+Create a mapping table containing:
+
+| Field | Description |
+|---|---|
+| Work Center Code | Original WC identifier |
+| Production Stage | Source-defined or clearly marked demo stage |
+| Equipment Type | Tank, Cover, Accessory, or other applicable type |
+| Inspection Template | Applicable template from the workbook |
+| Inspection Requirements | Associated questions and CTQs |
+| Measurement Requirements | Instruments, units, and tolerances |
+| Upstream Dependency | Previous stage, if defined |
+| Downstream Dependency | Next stage, if defined |
+| Data Source | Workbook, existing application, or synthetic assumption |
+| Verification Status | Verified, derived, or demo assumption |
+
+If a mapping is missing, synthesize a plausible mapping only when required for a functional demonstration. Mark it clearly as a demo assumption and never present it as verified Siemens Energy information.
+
+Do not silently overwrite existing work type values or database identifiers.
+
+---
+
+## 4. Redesign the User Interface
+
+Transform the existing truck/shipment-oriented interface into a manufacturing-oriented application.
+
+### A. Manufacturing dashboard
+
+Adapt the existing dashboard to display relevant manufacturing metrics, including:
+
+- Total Tanks.
+- Total Covers and other applicable components.
+- On-Time Tanks.
+- At-Risk Tanks.
+- Tanks currently in production.
+- Work in Progress (WIP).
+- Production progress by work center.
+- Inspection completion percentage.
+- Passed, failed, pending, and blocked inspections.
+- Production bottlenecks.
+- Work center workload and capacity.
+- Operator availability and staffing gaps.
+- Tanks at risk of missing production deadlines.
+- Estimated completion times, where supported.
+- Workforce utilization and labor productivity, where sufficient data exists.
+
+The dashboard must help supervisors identify problems and decide what action to take.
+
+Where actual production data is insufficient, create a realistic synthetic dataset that supports the dashboard, charts, filters, and workflows. Label synthetic results as demo data.
+
+### B. Tank Performance dashboard terminology changes
+
+Implement the following changes explicitly requested during the project review with Rajesh.
+
+| Existing terminology | Required terminology |
+|---|---|
+| Truck Performance | Tank Performance |
+| Total Trucks | Total Tanks |
+| On-Time Trucks | On-Time Tanks |
+| At-Risk Trucks | At-Risk Tanks |
+| Truck performance charts | Tank production and performance charts |
+| Truck-specific table headings | Appropriate tank, equipment, work center, or production fields |
+
+These are minimum required changes, not the complete list.
+
+Review all relevant pages and components, including:
+
+- Dashboard cards and KPI labels.
+- Charts, legends, tooltips, and axes.
+- Tables and column headings.
+- Navigation menus and page titles.
+- Search and filtering controls.
+- Detail pages and status messages.
+- Buttons, forms, notifications, and empty states.
+- Reports and exports.
+
+Replace truck-specific terminology with the correct manufacturing concept.
+
+Do not blindly replace every occurrence of the word "truck." Determine whether the underlying concept should become a tank, work order, work center, production stage, component, or another manufacturing entity.
+
+### C. Preserve existing functionality
+
+The terminology changes must not break existing functionality.
+
+- Preserve reusable dashboard interactions, navigation, charts, and filters.
+- Ensure that metrics use the appropriate manufacturing records rather than simply renaming existing truck counts.
+- Replace shipment-specific logic only where it is incompatible with manufacturing.
+- Keep the frontend, Flask APIs, database, and calculation logic consistent.
+- Ensure that actions involving one tank do not accidentally modify unrelated tanks.
+- Avoid unnecessary changes to database identifiers, formulas, and business rules.
+- Preserve unrelated functionality unless it depends on the old truck-based workflow.
+
+### D. Tank and equipment overview
+
+Replace truck tables and shipment details with an appropriate manufacturing-oriented table containing fields such as:
+
+- Tank or equipment ID.
+- Equipment type.
+- Work order ID.
+- Current work center.
+- Production stage.
+- Production status.
+- Inspection status.
+- Completion percentage.
+- Estimated completion time.
+- Planned production deadline.
+- Remaining slack.
+- Next production stage.
+- Readiness to proceed.
+- At-risk reason.
+
+Use source files to determine the appropriate fields. Synthesize missing demo values only when necessary.
+
+Include search, filtering, sorting, pagination where appropriate, and a detailed view for each tank or equipment item.
+
+### E. Work center pages
+
+Create a dedicated view for WC1–WC8.
+
+Each page should display:
+
+- Work center code and production stage.
+- Associated equipment and component types.
+- Current workload and queue.
+- Assigned and available operators.
+- Applicable inspection template.
+- Inspection questions and requirements.
+- Required instruments and measurement tolerances.
+- Inspection completion and failure information.
+- Work center capacity and production rate.
+- Staffing gaps.
+- Estimated completion time.
+- Bottlenecks and downstream impact.
+
+Do not hardcode the same inspection checklist for every work center. Dynamically load the correct inspection requirements from the workbook-derived configuration.
+
+### F. Professional industrial UI
+
+Use a clean, professional interface suitable for Siemens Energy stakeholders.
+
+- Prioritize supervisor decisions over decorative charts.
+- Use consistent status indicators and readable tables.
+- Make production delays, inspection failures, and staffing shortages easy to identify.
+- Clearly show why a tank is at risk, which work center is responsible, and what action may help.
+- Avoid clutter and misleading metrics.
+- Do not use Siemens Energy logos or proprietary brand assets without authorization.
+
+---
+
+## 5. Dynamic Quality Inspection Forms
+
+Build inspection forms dynamically using the Excel CTQ guide.
+
+### A. Supported question types
+
+Support the answer types defined in the workbook, including where applicable:
+
+- Yes/No answers.
+- Numeric measurements.
+- Text responses.
+- Dropdown or predefined choices.
+- Required evidence images.
+- Other answer types explicitly specified by the source.
+
+Do not invent answer types if the workbook already defines them.
+
+### B. Validation requirements
+
+Implement:
+
+- Required-field validation.
+- Numeric range and type validation.
+- Minimum and maximum tolerance checks where defined.
+- Measurement units.
+- Measurement instrument selection or display.
+- Help text and acceptance criteria.
+- Required evidence validation.
+- Appropriate missing-value handling.
+- Inspection history and results.
+
+A negative answer must not automatically be treated as a failure unless the source-defined requirement establishes that interpretation.
+
+Determine pass/fail behavior from the actual inspection rules.
+
+Do not silently change source-defined tolerances or acceptance criteria.
+
+### C. Quality status handling
+
+Distinguish between:
+
+- Pending inspection.
+- In-progress inspection.
+- Passed inspection.
+- Failed inspection.
+- Incomplete inspection.
+- Missing measurement.
+- Pending approval, where applicable.
+- Blocked production due to inspection requirements.
+
+A missing measurement must not automatically be treated as a passing result.
+
+### D. Traceability
+
+Every inspection result should be traceable to the available relevant information:
+
+- Equipment or tank ID.
+- Work order ID, where available.
+- Work center.
+- Inspection template and requirement.
+- Recorded answer or measurement.
+- Applicable source-defined tolerance.
+- Instrument used, where applicable.
+- Timestamp.
+- Responsible operator or inspector, where available.
+- Evidence references.
+- Validation result.
+- Inspection status.
+
+Maintain inspection history and an auditable record of changes where practical.
+
+### E. Missing official quality rules
+
+If a required rule, tolerance, template, or approval process is missing:
+
+1. Identify the missing information.
+2. Flag it for Siemens Energy stakeholder validation.
+3. Use a separate, clearly documented demo rule only when necessary to demonstrate a workflow.
+4. Never represent a synthetic quality rule as an official Siemens Energy requirement.
+
+---
+
+## 6. Tank Manufacturing and Production Workflow
+
+Design a logical manufacturing workflow based on the source files.
+
+Where the workbook defines the production sequence, use it. If the sequence is incomplete, synthesize a plausible demonstration workflow and label the assumptions.
+
+The workflow may include stages such as pre-assembly, assembly, painting, marking, and other stages only where supported by the workbook or clearly identified as demo assumptions.
+
+### Production requirements
+
+- Track tanks and associated components through their applicable work centers.
+- Associate production with work orders and quantities where supported.
+- Track the number of units planned, in progress, completed, and awaiting inspection.
+- Track current and next production stages.
+- Represent work center dependencies.
+- Identify bottlenecks and downstream delays.
+- Calculate production progress consistently.
+- Reflect inspection outcomes in readiness and stage progression.
+- Preserve separate work orders for components where required by the source.
+- Support different routes for different equipment types if the source indicates them.
+
+Do not assume every tank follows exactly the same production route.
+
+Do not assume that every work center has the same workload, capacity, inspection requirements, or staffing needs.
+
+### Status transitions
+
+Design explicit and validated status transitions.
+
+For example, a tank may progress from queued to in production, inspection pending, inspection passed, and ready for the next stage, depending on the approved workflow.
+
+Where mandatory inspections must be passed before progression, prevent the tank from moving forward until the required inspection is completed or an authorized approval is recorded.
+
+Do not invent official release or exception-approval procedures.
+
+---
+
+## 7. Workforce Planning and Operator Allocation
+
+Review the existing operator allocation, labor management, productivity, and ETC functionality.
+
+Preserve reusable labor management capabilities while removing truck-specific assumptions that do not apply to manufacturing.
+
+### A. Workforce planning
+
+Support:
+
+- Operator availability.
+- Operator qualifications and experience by work center.
+- Operator eligibility for specific production tasks.
+- Current assignments and workload.
+- Work center staffing gaps.
+- Production workload and capacity.
+- Operator pace and productivity.
+- Suggested reassignment between eligible work centers.
+- Before-and-after workload estimates.
+- Before-and-after production completion estimates.
+- Expected impact of additional resources.
+
+### B. Operator eligibility
+
+Recommend reallocation only when the operator:
+
+- Is available.
+- Has the required qualification or work center eligibility.
+- Is permitted to perform the task.
+- Is not already assigned incompatibly elsewhere.
+- Can be reassigned without violating applicable constraints.
+
+Prevent double-booking and invalid allocations.
+
+### C. Allocation behavior
+
+When an operator is reassigned:
+
+1. Validate operator availability and eligibility.
+2. Validate the source and destination work centers.
+3. Update only the intended assignment.
+4. Recalculate the relevant work center capacity and workload.
+5. Recalculate affected tank completion estimates.
+6. Update at-risk status only for records whose calculated conditions have changed.
+7. Show the before-and-after estimates.
+8. Explain the expected operational impact.
+9. Keep unrelated tanks and work centers unchanged.
+
+If staffing remains insufficient, do not falsely mark the tank as safe or completed.
+
+If multiple tanks share a work center, recalculate shared capacity consistently instead of treating the same operator as fully available to every tank.
+
+### D. Synthetic operator data
+
+Do not invent real operator performance.
+
+If source data is insufficient, create synthetic operators with consistent:
+
+- Operator IDs.
+- Experience levels.
+- Work center eligibility.
+- Availability.
+- Pace and productivity.
+- Shift schedules.
+- Assignments.
+- Labor cost rates, where needed.
+
+Label all synthetic operator records clearly as demo data.
+
+---
+
+## 8. Production Deadlines, ETC, Bottlenecks, and At-Risk Status
+
+Replace truck departure times and pickup cutoffs with manufacturing-specific deadlines, stage deadlines, and planned completion times.
+
+Do not reuse the truck ETC formula without validating whether it is appropriate for tank manufacturing.
+
+### A. Required inputs
+
+Use available or explicitly synthesized inputs such as:
+
+- Remaining workload or production quantity.
+- Historical or demo production rate.
+- Work center capacity.
+- Available and eligible operators.
+- Shift schedules and remaining working time.
+- Planned completion deadline.
+- Inspection or other modeled delays.
+- Dependencies and downstream constraints.
+
+### B. Manufacturing-specific calculations
+
+Document the formulas, units, assumptions, and data sources.
+
+For a simplified demonstration, an estimated remaining production time may be calculated as:
+
+Estimated Production Time = Remaining Workload / Effective Production Rate
+
+Where the data supports this calculation, effective production rate may be derived from the applicable work center capacity, operator availability, and validated productivity assumptions.
+
+Estimated completion must also account for shift boundaries, remaining working time, required inspection time, and explicitly modeled delays when applicable.
+
+Do not divide workload by an arbitrary rate or use inconsistent units.
+
+For example, if a synthetic tank has 120 units of remaining workload and its assigned resources can process 30 units per hour, the estimated production time is 4 productive hours before accounting for additional modeled delays or nonworking time.
+
+### C. At-risk status
+
+Determine at-risk status by comparing estimated completion against the applicable production deadline and remaining available time.
+
+Where appropriate, distinguish:
+
+- On track.
+- At risk.
+- Delayed.
+- Blocked.
+- Completed.
+
+Define each status explicitly and ensure that the same underlying conditions produce consistent results across the dashboard, table, and detail pages.
+
+Do not use truck departure or pickup cutoff logic unless an equivalent manufacturing requirement is explicitly defined.
+
+### D. Bottleneck identification
+
+Identify potential bottlenecks based on evidence such as:
+
+- Workload exceeding available capacity.
+- Insufficient qualified operators.
+- High queue volume.
+- Downstream dependencies.
+- Inspection delays.
+- Production rates below required rates.
+- Completion estimates exceeding planned deadlines.
+
+Explain why a work center or tank is at risk and identify possible corrective actions.
+
+---
+
+## 9. Synthetic Data Requirements
+
+**If the source files do not provide sufficient information, synthesize the missing data needed to build a complete, interactive, logically correct demonstration.**
+
+Follow these rules:
+
+1. Prefer source-defined information over synthetic assumptions.
+2. Never overwrite or contradict explicit workbook requirements.
+3. Clearly separate source data, derived values, and synthetic demo data.
+4. Use realistic and internally consistent relationships between tanks, work centers, operators, inspections, production rates, deadlines, and statuses.
+5. Generate enough records to demonstrate all eight work centers.
+6. Include multiple tanks and applicable components.
+7. Include normal, delayed, at-risk, completed, and blocked scenarios where relevant.
+8. Include both passed and failed inspections and incomplete inspection scenarios.
+9. Ensure dashboard totals, charts, tables, filters, and detail pages agree with one another.
+10. Ensure calculated values update correctly after inspection completion, operator reassignment, or production status changes.
+11. Make synthetic data deterministic or seed-controlled so repeated runs produce reproducible results.
+12. Clearly label synthetic records, assumptions, and results as demo data.
+13. Never present synthetic data as actual Siemens Energy operating data.
+14. Never generate arbitrary values that contradict dependent calculations.
+15. Keep synthetic production records consistent with the defined work center routes and equipment relationships.
+
+Derived fields must be calculated from their inputs instead of independently randomized.
+
+For example, if an operator is allocated to a work center, the updated capacity and completion estimate must reflect that allocation consistently.
+
+Include realistic scenarios such as:
+
+- A tank progressing through multiple work centers.
+- A work center with sufficient staffing.
+- A work center with insufficient staffing.
+- A tank approaching its production deadline.
+- A tank delayed by a mandatory inspection.
+- A failed measurement outside a defined tolerance.
+- An eligible operator reassigned to relieve a bottleneck.
+- A tank whose completion estimate improves after valid reassignment.
+- A tank that remains at risk because the additional capacity is insufficient.
+
+---
+
+## 10. Backend, Database, and Architecture Changes
+
+Update all relevant layers consistently.
+
+### A. Backend
+
+Adapt:
+
+- Flask routes and APIs.
+- Business logic.
+- Work center mapping.
+- Tank and component management.
+- Work order and production tracking.
+- Inspection validation.
+- Status transitions.
+- ETC and deadline calculations.
+- Bottleneck identification.
+- Workforce allocation.
+- Dashboard aggregation.
+- Data import and transformation.
+
+### B. Database
+
+Review the existing schema before making changes.
+
+Implement the necessary tables, fields, and relationships for the manufacturing workflow while preserving compatibility where appropriate.
+
+Consider entities such as:
+
+- Tanks and equipment.
+- Components.
+- Work orders.
+- Work centers.
+- Production stages.
+- Operator records.
+- Operator assignments.
+- Inspection templates.
+- Inspection questions.
+- CTQ requirements.
+- Inspection results.
+- Measurement records.
+- Evidence references.
+- Production events and history.
+- Work center capacity and configuration.
+
+Use the actual source requirements and existing architecture to determine the final design. Do not create unnecessary tables simply because they appear in this example list.
+
+Maintain appropriate identifiers, relationships, validation, and auditability.
+
+### C. Frontend
+
+Update:
+
+- HTML templates.
+- JavaScript.
+- CSS.
+- Charts.
+- Navigation.
+- API integrations.
+- Dashboard cards.
+- Forms and tables.
+- Search and filters.
+- Detail pages.
+- Error handling and notifications.
+
+Ensure that displayed data is derived from the correct backend responses.
+
+### D. Modularity
+
+Keep the implementation modular and maintainable.
+
+Separate work center configuration, equipment management, production planning, inspections, workforce allocation, and reporting into clear components or services where appropriate.
+
+Do not perform a blind global replacement of truck terminology in backend variables or database identifiers.
+
+Rename, migrate, or preserve identifiers according to their actual meaning and compatibility requirements.
+
+Keep unrelated functionality unchanged unless it depends on the old truck-based workflow.
+
+---
+
+## 11. Siemens Energy Client Context and Industrial Requirements
+
+Design the application as a professional industrial manufacturing demonstrator focused on production visibility, workforce optimization, manufacturing quality, CTQ compliance, and operational efficiency.
+
+### A. Business objectives
+
+Demonstrate how the solution can help manufacturing managers and supervisors:
+
+- Improve visibility into tank and component production across WC1–WC8.
+- Identify bottlenecks before they cause downstream delays.
+- Improve workforce utilization.
+- Allocate available operators effectively.
+- Monitor inspection completion and CTQ compliance.
+- Reduce rework risk by identifying failed or incomplete inspections early.
+- Improve throughput and production schedule adherence.
+- Track labor hours, productive hours, utilization, and labor costs where valid data exists.
+- Provide actionable insights for continuous improvement.
+
+### B. Quality and traceability
+
+- Treat the CTQ guide as the authoritative source for its defined inspection requirements.
+- Maintain traceability from each inspection result to the relevant equipment, work center, requirement, measurement, tolerance, timestamp, and responsible person where available.
+- Keep inspection history and changes auditable.
+- Distinguish failed inspections, missing measurements, pending approvals, and completed inspections.
+- Where the approved process requires it, prevent progression until mandatory inspections pass or authorized approval is recorded.
+- Do not invent official acceptance criteria, approved tolerances, sampling plans, or release decisions.
+- Flag missing official quality rules for Siemens Energy stakeholder validation.
+
+### C. Production and workforce intelligence
+
+- Display production workload, work center capacity, staffing gaps, operator eligibility, and completion estimates.
+- Recommend reassignment only when the operator is available, appropriately qualified, and permitted to perform the task.
+- Show the expected impact of allocation on both source and destination work centers.
+- Prevent double-booking.
+- Ensure one allocation action does not incorrectly update unrelated equipment.
+- Distinguish actual productivity from synthetic demo productivity.
+- Include labor cost and productivity calculations only when the required data is available or explicitly configured as a demo assumption.
+
+### D. Siemens Energy-ready presentation
+
+- Use a clean, professional industrial interface.
+- Prioritize actionable production insights.
+- Include work center overview, tank production tracking, CTQ inspection monitoring, bottleneck identification, and workforce planning.
+- Show why an item is at risk, which work center is responsible, and what action may help.
+- Make demo scenarios reproducible.
+- Do not use Siemens Energy logos or proprietary brand assets without authorization.
+- Do not claim official endorsement.
+- Do not claim integration with Siemens Energy ERP, MES, SAP, PLM, shop-floor equipment, or internal systems unless that integration has actually been implemented and validated.
+
+### E. Data security
+
+- Treat client production data, engineering documents, inspection criteria, and internal system information as confidential.
+- Never place credentials or confidential datasets in public repositories or hardcoded configuration.
+- Use synthetic data for demonstrations when real client data is unavailable or not approved for use.
+- Document proposed integrations separately from implemented integrations.
+- Keep the architecture modular so approved future enterprise and shop-floor integrations can be evaluated.
+
+---
+
+## 12. Required Demonstration Scenarios
+
+Implement and test realistic, clearly labeled scenarios demonstrating:
+
+1. A tank progressing through multiple work centers.
+2. A tank with a measurement outside its defined tolerance.
+3. A tank blocked by a mandatory incomplete or failed inspection.
+4. A work center with insufficient staffing and a downstream bottleneck.
+5. An eligible operator being reassigned to reduce a production delay.
+6. Before-and-after completion estimates that change consistently with the allocation.
+7. A dashboard showing production progress, CTQ status, and workforce utilization.
+8. A traceable inspection history for an individual tank.
+9. Multiple tanks with different production statuses.
+10. A tank that remains at risk after allocation because capacity is still insufficient.
+11. A work center with a healthy workload and adequate staffing.
+12. A tank whose inspection passes and allows progression when the workflow permits it.
+
+Use source-defined inspection requirements wherever available.
+
+Synthetic production records and staffing scenarios must never be presented as actual Siemens Energy operating data.
+
+---
+
+## 13. Mandatory Testing and Regression Validation
+
+Rajesh explicitly instructed Roopa to ensure that nothing breaks after making the changes and to test the application before the customer demonstration.
+
+**Testing is mandatory. Do not declare the application ready merely because the code has been changed or the application starts.**
+
+### A. Application stability
+
+- Start the application successfully.
+- Verify that all required dependencies are available.
+- Check for Python errors, Flask errors, JavaScript errors, missing assets, and failed API requests.
+- Confirm that database initialization and data loading work correctly.
+- Verify that the application can be deployed using the documented configuration.
+
+### B. Dashboard validation
+
+- Verify Total Tanks, On-Time Tanks, and At-Risk Tanks.
+- Confirm Tank Performance metrics are calculated from the underlying manufacturing records.
+- Ensure that charts, tables, and dashboard cards display consistent values.
+- Test filters, search, sorting, and navigation.
+- Confirm that all eight work centers are represented correctly.
+
+### C. Manufacturing and inspection validation
+
+- Verify work center mappings and equipment relationships.
+- Confirm each work center uses the correct inspection template.
+- Test required fields, numeric values, tolerances, missing measurements, and evidence requirements.
+- Verify that source-defined acceptance criteria remain unchanged.
+- Confirm that inspection outcomes correctly affect equipment status and readiness.
+- Verify that blocked tanks cannot progress when a mandatory inspection prevents progression.
+
+### D. Workforce and calculation validation
+
+- Test operator availability and eligibility.
+- Test valid and invalid reassignment attempts.
+- Prevent double-booking.
+- Confirm that allocation updates the correct source and destination work centers.
+- Recalculate workload, capacity, and completion estimates consistently.
+- Verify that only affected tanks and work centers are updated.
+- Ensure a tank is not incorrectly marked on time, safe, or completed when the calculations do not support that status.
+
+### E. Regression testing
+
+- Check that existing reusable functionality still works.
+- Confirm that unrelated features have not been broken.
+- Review truck-related terminology throughout the UI.
+- Preserve technical identifiers where required for compatibility.
+- Run automated tests and resolve regressions caused by the changes.
+
+### F. Test reporting
+
+Provide a concise test report containing:
+
+| Test area | Expected report |
+|---|---|
+| Application startup | Pass/fail and evidence |
+| Dashboard metrics | Pass/fail and consistency checks |
+| WC1–WC8 mapping | Pass/fail and mapping issues |
+| Inspection validation | Pass/fail and rule coverage |
+| Production workflow | Pass/fail and status transitions |
+| ETC calculations | Pass/fail and calculation checks |
+| Operator allocation | Pass/fail and affected-record checks |
+| Frontend functionality | Pass/fail and errors found |
+| Regression tests | Pass/fail and unresolved issues |
+| Deployment | Pass/fail and configuration requirements |
+
+Only report tests that were actually executed. Clearly distinguish implemented features, verified behavior, partially tested functionality, and remaining limitations.
+
+---
+
+## 14. Business Value and Success Measures
+
+Where sufficient data exists, calculate and display:
+
+- Work center throughput.
+- Planned versus actual completion.
+- Schedule adherence.
+- Production lead time.
+- Operator utilization.
+- Productive versus nonproductive hours.
+- Labor cost per productive hour.
+- Labor cost per completed unit.
+- Inspection pass rate.
+- First-pass yield.
+- Rework rate.
+- Time blocked by quality issues.
+- Time lost to resource shortages.
+
+For every metric, document:
+
+- Definition.
+- Formula.
+- Unit of measurement.
+- Required inputs.
+- Data source.
+- Relevant assumptions.
+- Whether the value is actual, derived, or synthetic.
+
+Do not claim financial savings, percentage improvements, productivity gains, or return on investment without supporting baseline data and validated calculations.
+
+If only synthetic data is available, present results as illustrative demo metrics.
+
+---
+
+## 15. Required Deliverables
+
+Provide the following deliverables.
+
+### 1. File analysis
+
+Summarize the workbook and existing application, including their relevant structures, workflows, dependencies, and limitations.
+
+### 2. WC1–WC8 mapping table
+
+Provide the complete mapping for all eight work centers, with source references or clear labels for synthesized assumptions.
+
+### 3. Impact analysis
+
+List the required frontend, backend, database, calculation, workflow, and configuration changes.
+
+### 4. Architecture and data flow
+
+Explain the proposed architecture and how data moves between:
+
+- Work orders and equipment.
+- Work centers and production stages.
+- Operator assignments and workforce capacity.
+- Inspection templates and recorded results.
+- Production calculations and status updates.
+- Backend APIs and dashboard visualizations.
+
+### 5. Implemented code
+
+Implement the changes in the existing application rather than merely generating a plan or writing standalone example code.
+
+Preserve reusable functionality and make the smallest justified changes needed to achieve the manufacturing workflow.
+
+### 6. Modified files report
+
+List each modified or added file and explain why it was changed.
+
+### 7. Synthetic data and assumptions
+
+Document:
+
+- Synthetic data definitions.
+- Source-to-demo mappings.
+- Assumed production routes.
+- Synthetic operator attributes.
+- Synthetic production rates and capacities.
+- Inspection demo rules.
+- ETC and deadline formulas.
+- Any remaining information requiring stakeholder validation.
+
+### 8. Automated tests and results
+
+Provide the tests executed, their results, and any failures or limitations.
+
+### 9. Setup and deployment instructions
+
+Provide the dependencies, environment configuration, database initialization, commands to run the application, and deployment steps.
+
+### 10. Customer demonstration readiness report
+
+Summarize:
+
+- Implemented functionality.
+- Verified workflows.
+- Known limitations.
+- Remaining issues.
+- Any source requirements that need Siemens Energy confirmation.
+
+---
+
+## 16. Implementation Rules
+
+Follow these rules throughout the project:
+
+1. Analyze both files before implementing changes.
+2. Use the Excel workbook as the source of truth for the requirements it explicitly defines.
+3. Preserve the existing application's reusable functionality.
+4. Do not blindly rename truck terminology or database identifiers.
+5. Do not invent official Siemens Energy production or quality requirements.
+6. Clearly label all synthetic data and demo assumptions.
+7. Maintain consistent calculations across dashboards, tables, and detail pages.
+8. Keep inspection rules, production workflow, and workforce logic modular.
+9. Make demo scenarios deterministic and reproducible.
+10. Implement and execute appropriate automated tests.
+11. Do not claim that unimplemented integrations or untested functionality work.
+12. Do not stop after producing an analysis or implementation plan.
+13. Proceed with implementation after the initial analysis unless a genuinely blocking ambiguity requires clarification.
+14. If a requirement cannot be implemented because the necessary information is unavailable, explain the limitation and implement a safe, clearly labeled demo alternative where appropriate.
+15. Keep client data confidential and do not expose credentials or internal information.
+
+## Final Priority
+
+Build a coherent, professional tank manufacturing and quality inspection application suitable for a Siemens Energy PoC.
+
+The finished solution must go beyond a renamed truck dashboard. It must connect work centers WC1–WC8, tank and component production, CTQ inspections, workforce allocation, manufacturing-specific completion estimates, and production bottleneck visibility into one consistent workflow.
+
+**The existing dashboard terminology must be updated, the underlying manufacturing calculations must be logically correct, and the application must be tested to ensure that the changes do not break existing functionality before it is declared ready for the customer demonstration.**
+
+Where source data is missing, use clearly identified synthetic data that makes the application functional, realistic, internally consistent, and suitable for demonstrating the complete workflow. Clearly separate demo capabilities from validated production functionality.

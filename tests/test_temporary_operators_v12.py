@@ -151,15 +151,18 @@ def test_s8_competing_trucks_recalculate_after_one_allocation():
     assert first['plan'] == {'realloc': ['lhall'], 'temps': 1, 'possible': True}
     assert second['plan'] == {'realloc': ['lhall'], 'temps': 6, 'possible': True}   # same operator wanted
     step = preview_state(src, st, 1, ['lhall'], shipment=T1057)['steps'][0]
-    move = dict(operator='lhall', source=step['source'], dest=1, start_snapshot=9, destination_pace=step['pace'])
+    move = dict(operator='lhall', source=step['source'], dest=1, start_snapshot=9,
+                shipment=T1057, destination_pace=step['pace'])
     temp = dict(id='TEMP-1', dest=1, count=1, start_snapshot=9, shipment=T1057, pace_pct=100)
     after, _, current = requirement(9, T1003, 1, loading, moves=[move], temps=[temp])
     assert 'lhall' not in after['safe_available'] and after['plan']['realloc'] == []
-    assert after['plan']['temps'] < second['plan']['temps'] + 1 and after['plan']['possible']
+    # The first truck's dedicated capacity does not help the second truck. The
+    # second now needs one extra temporary because lhall is no longer available.
+    assert after['plan']['temps'] == second['plan']['temps'] + 1 and after['plan']['possible']
     statuses = {t['shipment']: t['status'] for t in current['trucks']}
     assert statuses[T1057] == 'ON TIME' and statuses[T1003] in ('AT RISK', 'PICK CUTOFF PASSED')
     rows, _ = chart(9, T1003, loading, moves=[move], temps=[temp])
-    assert rows['confirmed']['temporary'] == 1 and rows['temporary']['band'] == 'green'
+    assert rows['confirmed']['temporary'] == 0 and rows['temporary']['band'] == 'green'
 
 
 # ---------- engine: confirmed temporaries ----------

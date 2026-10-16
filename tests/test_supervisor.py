@@ -103,6 +103,7 @@ def test_preview_and_explicit_allocation_are_separate_client_steps():
     assert _SCENARIOS[key]['preview']['10:2:SH0908-1034']==['jmccraw']
     assert c.post('/planner',data=dict(payload,action='allocate',scenario_version=0)).status_code==302
     assert len(_SCENARIOS[key]['confirmed_moves'])==1
+    assert _SCENARIOS[key]['confirmed_moves'][0]['shipment'] == 'SH0908-1034'
     assert not _SCENARIOS[key]['preview'].get('10:2:SH0908-1034')
     assert c.get('/planner?snapshot=11&worktype=2').status_code == 200
     # Confirmed allocation was NOT written to a new staffing/approval table.

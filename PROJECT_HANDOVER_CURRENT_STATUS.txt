@@ -1,0 +1,813 @@
+CURRENT V14 STATUS 2026-10-14 — READ THIS FIRST
+Latest release: docs/project_tracking/PRESSURE_SCENARIO_RELEASE_v14.md (synthetic late OTC add-on orders make
+SH0908-1034 and SH0908-1069 calculated AT RISK at 18:30; PICK CUTOFF PASSED from 19:15 when lhall logs out at her
+recorded 19:13; confirmed allocations replayed at later snapshots with source-area reopening; truck status history).
+Generator: scripts/build_pressure_scenario_v14.py (baseline INFO/historical/ten_truck_v13_baseline.xlsx).
+Full test suite: 263 passed.
+
+PREVIOUS: CURRENT V13 STATUS 2026-10-13 — READ THIS FIRST
+Latest release: docs/project_tracking/ENVIRONMENT_RELEASE_v13.md (environmental conditions by work area: manual entry,
+validation, sensor-ready API, experimental gated analysis, heat & hydration information; CONTEXT ONLY, no ETC change).
+Status, client questions and gaps: docs/project_tracking/PROJECT_STATUS_v13.md. Hardware proposal (not purchased):
+docs/project_tracking/ENVIRONMENT_HARDWARE_PROPOSAL_v13.md. Full test suite: 246 passed.
+
+PREVIOUS: CURRENT V12 STATUS 2026-10-13 — READ THIS FIRST
+Latest release: docs/project_tracking/TEMPORARY_OPERATORS_RELEASE_v12.md (temporary operators after safe
+reallocation; session only). Full test suite: 206 passed. The v4-v11 "no temporary labour" rule is superseded.
+
+PREVIOUS: V11 STATUS 2026-10-13
+Latest release: docs/project_tracking/STATUS_CONSISTENCY_RELEASE_v11.md (picking-time planning pace,
+corrected demo labor time, consistent At Risk status). Full test suite: 193 passed.
+
+PREVIOUS: V10 STATUS 2026-10-12
+Latest release: docs/project_tracking/READY_TIME_CHART_RELEASE_v10.md (before/after truck ready-time chart,
+configurable safety buffer). Full test suite: 184 passed. Everything below is earlier history.
+
+CURRENT V8 STATUS 2026-10-12 — READ THIS FIRST
+
+The active workbook/database now contain a TEN-TRUCK SYNTHETIC REPLAY.
+Default snapshot10: 2 AT RISK (SH0908-1034 and SH0908-1069), 4 ON TIME, 4 ALL PICKED.
+Supervisor moves are strictly TEMPORARY IN-PROCESS SESSION SCENARIOS, not persisted as allocations or sent to WMS.
+The full v8 specification, limitations and test outcomes are in docs/project_tracking/IMPLEMENTATION_RELEASE_v8.md.
+THE REMAINDER OF THIS DOCUMENT IS ARCHIVED HISTORICAL HANDOVER TEXT; REFERENCES TO 33 ACTIVE TRUCKS OR PERSISTED MOVES ARE NO LONGER CURRENT.
+
+--------------------------------------------------------------------------------
+
+PROJECT HANDOVER AND CURRENT STATUS REPORT
+==========================================
+
+Project name: Truck ETC LMS (SMD) / Truck ETC supervisor app
+Report generation date: 10-Oct-2026 (Asia/Calcutta)
+Current project directory: C:\Labor management\truck-etc-app
+Current branch: main (tracking origin/main; no ahead/behind count shown by git status)
+Latest commit: 73a9990, 09-Oct-2026 22:43:50 +0530, "readme"
+Overall development status: Working local Phase 1 calculation engine plus Phase 4 dashboard/truck/operator drill-down. The current workbook, Python engine, SQLite cache, and rendered Flask routes are covered by a passing automated suite. Production integration and later planning/administration phases are not built.
+Most important unresolved issue: Operational recommendations still depend partly on explicitly simulated cross-training familiarity and on synthesized departures/cutoffs. They are advisory, not verified qualifications or execution instructions, and transfer/setup time and an agreed source safety buffer are not modeled.
+Immediate next action: Review and finish the current uncommitted UI/documentation cleanup (operator status/pace panel removal and screenshot cleanup), update stale documentation validation counts to 119 tests, then commit that coherent state before starting a new feature. After that, obtain business decisions/real data for qualification, transfer time, safety buffer, timezone, and staging/loading dependencies.
+
+Evidence labels used in this report:
+  VERIFIED = inspected in the current files/data and/or exercised by the current test suite.
+  DOCUMENTED DECISION = stated in current README/guide or preserved historical notes and consistent with code.
+  HISTORICAL CONTEXT = recovered from INFO/prompt or Git history; not necessarily current behavior.
+  UNVERIFIED / ASSUMPTION = not demonstrable from the accessible files or current conversation.
+
+
+1. CURRENT PROJECT STATUS
+=========================
+
+1.1 Purpose and business problem
+--------------------------------
+
+VERIFIED: The application answers: based on work still open and picking productivity observed so far, will each outbound truck's required picking finish before its pick cutoff?
+
+It replays the SMD warehouse 100 operating day of 08-Sep-2026 at 18 quarter-hour snapshots (16:15 through 20:30). It calculates work-type and truck ETC, ready time, slack, bottleneck and risk; then tests headcount-neutral moves of qualified existing operators from one work type to another. It does not add temporary staff and does not execute assignments in a WMS/LMS.
+
+The warehouse reason for using LINES_AHEAD rather than only a truck's own open lines is that an area is assumed to process equal/earlier-cutoff truck work first. One slow area can control a multi-area truck's readiness.
+
+1.2 Current architecture and execution flow
+-------------------------------------------
+
+  data/workbook.xlsx
+      -> calculations/excel_io.py loads source sheets and cached reference results
+      -> calculations/etc.py calculates observed labor/productivity by snapshot/work type
+      -> calculations/truck.py builds truck/work-type priority queues and baseline truck results
+      -> calculations/uncertainty.py adds observed-pace sensitivity bounds
+      -> calculations/reallocation.py tests iterative existing-operator moves and source safety
+      -> calculations/truck.py aggregates after-move truck results
+      -> models/database.py rebuilds SQLAlchemy result/source tables in data/truck_etc.db
+      -> app.py serves Jinja pages using database queries plus calculations/detail.py and calculations/operator.py
+      -> templates + static JavaScript/CSS render Bootstrap tables and Plotly charts
+
+Technology stack (VERIFIED): Python 3, Flask >=3.0, SQLAlchemy >=2.0, pandas >=2.2, NumPy >=1.26, openpyxl >=3.1, python-dotenv >=1.0, pytest >=8.0, Jinja2, Bootstrap 5.3.3 and Plotly.js 2.35.2. The selected .venv reports Python 3.14.7. SQLite is the current database. Bootstrap and Plotly are CDN-loaded, so styling/charts need browser internet access.
+
+1.3 Current verified scope and data volumes
+-------------------------------------------
+
+  Analysis date                         08-Sep-2026
+  Client / warehouse                    SMD / 100
+  Work types                            1 Prescription, 2 OTC, 3 Vault,
+                                        4 Cage, 5 Cooler, 6 Cases
+  Snapshots                             18 (16:15 through 20:30, 15-minute steps)
+  Trucks/routes                         33
+  Orders                                421
+  Work IDs                              625
+  Item/pick lines                       1,163
+  Distinct operators                    12
+  Simulated familiarity rows            15
+  ETC rows                              108 (18 x 6)
+  Truck/work-type rows                  3,564 (18 x 33 x 6)
+  Truck rows                            594 (18 x 33)
+  At-risk reallocation summaries        13
+  Accepted reallocation moves           3
+
+Across all 594 baseline truck/snapshot rows, current point statuses are:
+  ALL PICKED 177; NO RATE 169; ON TIME 156; DEPARTED COMPLETE 64;
+  NO WORK RELEASED YET 23; AT RISK 4; PICK CUTOFF PASSED - LATE 1.
+
+Conservative planning statuses are:
+  ALL PICKED 177; NO RATE 169; ON TIME 117; DEPARTED COMPLETE 64;
+  AT RISK 43; NO WORK RELEASED YET 23; PICK CUTOFF PASSED - LATE 1.
+
+This difference is intentional: point ETC remains the Excel-parity calculation, while planning status uses the slower observed-pace bound. The bound is a sensitivity envelope, not a confidence interval or guarantee.
+
+1.4 Implemented and verified features
+--------------------------------------
+
+VERIFIED by code and the 10-Oct-2026 test run:
+  - Excel ingestion and Excel-serial time handling.
+  - Automatic SQLite initialization/rebuild when the workbook SHA-256 changes.
+  - Snapshot dashboard with planning status counts, truck table and ETC/time-left chart.
+  - Work-type ETC and truck ETC with cutoff, ready time, bottleneck and slack.
+  - Lifecycle states: no work released, all picked, cutoff passed, departed, no rate.
+  - Frozen missed-line-at-departure calculation; later picks cannot rewrite departure history.
+  - Empirical observed-pace low/high range and conservative planning status.
+  - Iterative existing-operator reallocation with familiarity, measured pace, source-rate removal, source-safety checks, destination improvement, headcount conservation, shortfall and stop reason.
+  - Truck page: identity and KPIs, status explanation, reallocation table, work-type table/chart, three history charts, order/work-ID tabs, alerts/actions.
+  - Operator profile: actual completed work and observed time, area-specific pace, actual versus simulated familiarity provenance, current workload/cutoff context, eligibility and selected moves.
+  - Responsive tables/styles and clickable dashboard/truck/operator navigation.
+  - Excel parity, data integrity, calculations, route rendering and drill-down reconciliation tests.
+
+1.5 Partially implemented or intentionally constrained
+------------------------------------------------------
+
+  - Reallocation is only an advisory scenario. It is not written to LM005S1, TI102, a WMS, an operator queue or an approval/audit system.
+  - Operator cross-training uses actual completed destination work when available; the active cleaned day contains no operator with completions in more than one work type, so all three active accepted moves rely on separately labeled simulated familiarity.
+  - Productivity uncertainty only reflects observed operator pace variation. It excludes travel, congestion, breaks, replenishment, equipment delays, transfer/setup time and other unmeasured constraints.
+  - Piece-rate ETC is calculated in ETC_CALC but readiness and operator need are line-based.
+  - Packing, staging, actual arrival, loading progress, carrier telemetry, equipment constraints and downstream execution are not implemented. Only a fixed 30-minute loading allowance defines cutoff.
+  - calculations/detail.py still computes rich operator rows and operator-derived alerts for truck details, but the current uncommitted UI deliberately removes the truck-page operator table/status/pace charts. Operator profiles remain accessible only from accepted reallocation names.
+
+1.6 Planned but not implemented
+-------------------------------
+
+DOCUMENTED DECISION in README:
+  - Standalone work-type page.
+  - Phase 5 what-if planner (move orders, delay departure, ship partial).
+  - Phase 6 alerts beyond current generated truck-detail guidance.
+  - Phase 7 configuration and audit.
+  - Phase 8 production evolution/live integration.
+
+Also not built: authentication, roles, approvals, persistent audit history, real-time feeds, automatic refresh/writeback, verified training/certification source, staging/loading telemetry, or production deployment configuration.
+
+1.7 Current work in progress
+----------------------------
+
+The Git working tree is not clean. Current uncommitted changes:
+  M README.md
+  M app.py
+  M docs/TRUCK_ETC_APPLICATION_GUIDE.md
+  M models/database.py
+  M static/css/style.css
+  M static/js/truck_detail.js
+  M templates/truck_detail.html
+  D docs/dashboard-snapshot10.png
+  D docs/operator-hgroff-snapshot10.png
+  D docs/truck-detail-snapshot10.png
+
+The same screenshots remain tracked under docs/images/, and the guide references the docs/images/ copies, so the deletions appear to be duplicate cleanup rather than lost referenced assets.
+
+Latest code change intent, inferred from the diff:
+  - Remove the operator status/pace panel and its JSON/chart payload from truck detail.
+  - Keep operator profiles linked from the reallocation table.
+  - Simplify the guide accordingly.
+  - Extend database schema compatibility detection so missing planning_slack_text or planning_slack_after_text triggers cache-schema recreation.
+
+These changes are tested in the current working tree but are not committed. Do not discard them.
+
+
+2. DEVELOPMENT HISTORY AND PRESERVED DECISIONS
+===============================================
+
+2.1 Accessible history limitation
+---------------------------------
+
+No earlier chat transcript is available in this session. Historical knowledge below comes from Git log, README.md, docs/TRUCK_ETC_APPLICATION_GUIDE.md, INFO/README.md and INFO/prompt. Anything not present there is unknown; this report does not invent requests or approvals.
+
+2.2 Git-visible stages
+----------------------
+
+  6adc44c 06-Oct-2026: initial Truck ETC app, Excel parity engine, SQLite, first dashboard.
+  8d5ecc3 07-Oct-2026: Phase 4 truck drill-down (KPIs, explanation, work types, operators, trends, orders, alerts).
+  8a390f7 08-Oct-2026: switch to real SMD 08-Sep data, customer orders/work IDs, rebuild on workbook change.
+  808a68d / a4dac6e 09-Oct-2026: first/main project commits and title update.
+  d167184 09-Oct-2026: merged remote changes with local project.
+  73a9990 09-Oct-2026: README update (current HEAD).
+  Uncommitted 10-Oct-2026 state: truck operator panel removal, guide cleanup, schema detection extension.
+
+2.3 Important requirements and decisions that must be preserved
+---------------------------------------------------------------
+
+  - Route equals truck in this model; SHIPMENTID is the truck key.
+  - Count item lines, not work IDs, for ETC. A region-6 case-pick work ID may span several customers; each item retains its order/truck relationship.
+  - Do not create or imply temporary labor. Reallocate existing operators only; total headcount must stay unchanged.
+  - A move must reduce source capacity as well as increase destination capacity. Recalculate every open source truck and reject the move unless source remains safe at point and conservative rates.
+  - Do not assume a fixed number of moves. Select iteratively until the conservative destination cutoff is met or no defensible safe familiar operator remains. Store allocated count, remaining shortfall and stop reason.
+  - Do not declare a truck safe from point ETC alone when the conservative planning bound misses cutoff. The UI deliberately shows point and planning states.
+  - Simulated familiarity must always be labeled SIMULATED PLANNING ASSUMPTION and never presented as actual work or certification.
+  - The Excel workbook is the golden reference for baseline ETC/truck calculations. Reallocation workbook values are generated by Python, so that parity is serialization consistency, not independent validation.
+  - Use Excel serial days and the documented tolerances/rounding so Python matches Excel.
+  - Freeze missed-line status at the departure event; later completion cannot convert a departed miss into DEPARTED COMPLETE.
+  - The historical DOCX/XLSX under INFO are archival and are not runtime inputs.
+
+2.4 Dataset cleanup history
+---------------------------
+
+HISTORICAL CONTEXT from INFO/prompt: the earlier 36-route dataset synthesized departures too early for routes 1001, 1075 and 1085; picks occurred after modeled departure. It also exposed a departed-status bug that recalculated from later open work and could incorrectly change a missed truck to complete. The current solution:
+  - fixed/froze departure-event miss counting in code;
+  - removed SH0908-1001, SH0908-1075 and SH0908-1085 and all dependent records from the active workbook;
+  - retained the old 36-route material in INFO for traceability;
+  - added one explicitly labeled scenario T07_PICK_CUTOFF_PASSED_LATE on SH0908-1072 to cover cutoff-passed behavior;
+  - validates that no active pick occurs after its synthesized departure.
+
+The active workbook therefore has no DEPARTED - n LINES LEFT BEHIND row, although the code and unit test support that state.
+
+
+3. CODEBASE AND FILE-LEVEL ANALYSIS
+===================================
+
+3.1 Root/configuration
+----------------------
+
+  app.py
+    Flask factory and module-level app. Registers filters, initializes/rebuilds DB, and exposes /, /truck/<shipment_id>, /operator/<operator_name>, plus flask init-db. Direct execution uses debug=True and is development-only.
+
+  config.py
+    Loads .env. Resolves relative WORKBOOK_PATH and sqlite DATABASE_URL against the project root. DEFAULT_SNAPSHOT defaults to 9.
+
+  .env
+    Current keys only: WORKBOOK_PATH, DATABASE_URL, DEFAULT_SNAPSHOT, FLASK_DEBUG. Values are intentionally not copied here. No credentials were included in this report.
+
+  requirements.txt / pytest.ini
+    Runtime/test requirements and pytest configuration (tests path). Versions are minimum bounds, not locked reproducible pins.
+
+  README.md
+    Concise architecture, formulas, current behavior, parity, edge cases, Phase 4 and next phases. It is more current than the historical DOCX but less exhaustive than the application guide.
+
+3.2 Calculation modules
+-----------------------
+
+  calculations/excel_io.py
+    Excel epoch/serial conversion; Inputs dataclass; reads CONFIG, TRUCK_CONFIG, LM005S1, TI102, TI102C, OB_SHIPMENT, OB_ORDER, OB_LINE_MAP, OPERATOR_EXPERIENCE, M123/M123T; reads cached ETC_CALC, TRUCK_WT_ETC, TRUCK_ETC and TRUCK_REALLOCATION reference sheets.
+
+  calculations/etc.py :: etc_by_worktype
+    Baseline per-snapshot/per-work-type labor hours, completed lines/pieces, resources, actual rates, open work, line/piece ETC and per-person rate. WORKTYPES is fixed to [1..6].
+
+  calculations/truck.py
+    departure_at applies a changed departure only once announced; worktype_rows builds effective order/truck ownership and priority queues; _wt_calc calculates work-type ETC/needs; truck_rows and _truck_answer calculate lifecycle/bottleneck/status; _truck_uncertainty aggregates ranges; _after_reallocation aggregates scenario results. EPS=1e-9 day controls time comparisons.
+
+  calculations/uncertainty.py :: add_uncertainty
+    Builds positive observed operator paces by work type and creates low/high rate and ETC envelopes. Explicitly not probabilistic.
+
+  calculations/reallocation.py :: apply_reallocation
+    Core headcount-neutral recommendation engine. Collects active operators and measured pace; recognizes actual or simulated familiarity; evaluates source point and conservative safety; ranks candidates; applies moves iteratively; records summaries/moves and after-state values. _source_safe and _source_impact are important regression points.
+
+  calculations/detail.py :: truck_detail
+    Produces all truck-page KPIs, work types, operators, reallocations, orders, work IDs, trends, narrative explanation and alerts. Important thresholds declared near the top/current guide: assigned-not-started 10 minutes, no pick 30 minutes, low pace below 60% of area average after 0.5 observed hour.
+
+  calculations/operator.py :: operator_profile
+    Produces current assignment/status, completed work, actual pace, assignment history, actual/simulated familiarity, remaining held work, earliest current-area cutoff context, eligibility and selected moves.
+
+  calculations/engine.py :: run
+    Orchestrates load -> ETC -> truck/work-type -> uncertainty -> reallocation -> truck aggregation and returns a Results dataclass including inputs.
+
+3.3 Persistence
+---------------
+
+  models/models.py
+    SQLAlchemy declarations: Snapshot, TruckResult, WorktypeResult and ReallocationMove. Stores point, range, planning and before/after values.
+
+  models/database.py
+    Engine/session lifecycle, schema compatibility checks, workbook SHA-256 stamp, complete cache rebuild, source-table storage, cached source loader and query adapters for dashboard/truck/operator pages. The SQLite DB is reproducible cache data and is gitignored.
+
+Important DB tables:
+  snapshot; truck_result; worktype_result; reallocation_move;
+  src_lm005s1; src_ti102; src_ti102c; src_order; src_line_map;
+  src_operator_experience; src_config; src_snapshot; src_worktype.
+
+3.4 UI files and interactions
+-----------------------------
+
+  templates/base.html
+    Global Bootstrap shell, project/client/warehouse navbar and analysis date.
+
+  templates/dashboard.html + static/js/dashboard.js
+    Auto-submitting snapshot selector; six status cards; clickable truck table; grouped ETC/slower-bound/time-left chart; explicit no-rate marker.
+
+  templates/truck_detail.html + static/js/truck_detail.js
+    Snapshot selector/back link; identity/status/slack; seven KPI cards; generated explanation; conditional reallocation table; work-type table and finish/cutoff plot; open/slack, throughput and picker history plots; order/work-ID tabs; generated alerts/actions. Current UI intentionally has no standalone operator table or operator status/pace charts.
+
+  templates/operator_detail.html
+    Browser-history Back button; snapshot selector; provenance banner; productivity/workload cards; familiarity, current cutoff context, work-type metrics, reallocation eligibility, assignment history and selected recommendation.
+
+  static/css/style.css
+    Responsive layout, readable tables, fixed wide reallocation table with sticky area column, candidate grid and mobile breakpoints.
+
+3.5 Tests
+---------
+
+  tests/conftest.py                 engine/reference fixtures
+  tests/parity.py                   blank/numeric/time comparison helpers
+  tests/test_etc.py                 rate/ETC basics, future completion exclusion, no-resource NULL
+  tests/test_truck.py               rounding, departure changes, cutoff/status and frozen departure miss
+  tests/test_reallocation.py        actual/simulated evidence, source subtraction, headcount
+  tests/test_uncertainty_reallocation.py  uncertainty and iterative multi-operator/shortfall/source cases
+  tests/test_excel_parity.py        cached Excel equality by mapped column
+  tests/test_data_integrity.py      identifiers, relationships, departures, lifecycle, quantities, checks
+  tests/test_detail.py              KPI reconciliation, explanations, alerts, long evidence handling
+  tests/test_app.py                 Flask route/page rendering and selected UI/provenance assertions
+
+3.6 Workbook maintenance scripts
+--------------------------------
+
+  scripts/add_operator_experience.py
+    Adds/updates the separately labeled simulated familiarity matrix.
+  scripts/add_cutoff_passed_scenario.py
+    Adds the labeled cutoff-passed coverage scenario.
+  scripts/update_reallocation_workbook.py
+    Updates workbook reallocation outputs/formulas from the Python model.
+
+Treat scripts as maintenance tools, not runtime code. Work on a copy and rerun all integrity/parity tests after using them.
+
+3.7 Data/archive/docs
+---------------------
+
+  data/workbook.xlsx
+    Active validated runtime workbook, 2,397,683 bytes, last modified 09-Oct-2026 21:49 local filesystem time.
+
+  INFO/SMD_Truck_ETC_RealDay_2026-09-08 (1).xlsx
+    Historical 36-route source archive; not loaded by app.
+  INFO/TRUCK_OB_Sheet_Documentation (3) (1).docx
+    Historical documentation with obsolete 36-route/temporary-operator language.
+  INFO/README.md
+    Clearly marks INFO as historical.
+  INFO/prompt
+    Preserved prior diagnosis/request context for dataset cleanup and full validation.
+
+  docs/TRUCK_ETC_APPLICATION_GUIDE.md
+    Detailed technical/user guide and data dictionary. Current working-tree edits remove references to the disabled truck operator panel. Its recorded "112 tests" is stale; this report verified 119.
+  docs/images/*.png
+    Current referenced screenshots. Duplicate root-level docs/*.png files are staged only as working-tree deletions, not yet committed.
+
+
+4. DATA, CALCULATIONS AND BUSINESS LOGIC
+========================================
+
+4.1 Provenance categories
+-------------------------
+
+REAL/ACTUAL source records:
+  route identities, 421 orders, 625 work IDs, 1,163 item lines, labor sessions, pick times, operator identities/productivity and customer/order relationships in the cleaned SMD day.
+
+SYNTHESIZED source/configuration:
+  dock doors; truck departures/cutoffs (except actual relationships); one explicitly labeled cutoff-passed scenario; OPERATOR_EXPERIENCE familiarity matrix. Carrier is effectively unavailable/n/a.
+
+DERIVED/calculated:
+  replay snapshots; open/completed measures; rates; priority lines; ETC/ready/slack/status; empirical range; operator needs; recommendation candidates/moves; alerts and page summaries.
+
+ARCHIVAL:
+  INFO files. They must not be mixed with active runtime results.
+
+4.2 Exact baseline formulas
+---------------------------
+
+For snapshot T and work type w:
+
+  TOTALTIMEINHRS = SUM(LM005S1.TOTALTIMEINSEC) / 3600
+
+  TOTALLINES = count of completed TI102 rows at snapshot
+               + count of TI102C rows with MOVED_TO_C_AT <= T,
+               filtered to analysis date/client/warehouse/status 3
+
+  TOTALPIECES = analogous sum of PROCESSEDQTY
+
+  RESOURCES = COUNT(DISTINCT RESOURCENAME where WIPIND='Y')
+
+  PER_PERSON_RATE = TOTALLINES / TOTALTIMEINHRS
+
+  ACTUALRATELINES = PER_PERSON_RATE * RESOURCES
+
+  OPENLINES = count of open TI102 rows with OPENQTY > 0
+  OPENQTY = sum of OPENQTY
+
+  ETCLINES hours = OPENLINES / ACTUALRATELINES
+  ETCPIECES hours = OPENQTY / ACTUALRATEPIECES
+
+Missing/fallback: rates are None when observed hours or resources are zero; per-person rate is None when hours are zero or no completed lines exist; ETC is None when open work exists without a positive rate.
+
+4.3 Truck ownership, deadline and queue
+---------------------------------------
+
+  effective truck at T = ORIGINAL_SHIPMENTID before MOVED_AT,
+                         otherwise final SHIPMENTID
+
+  effective departure at T = ORIGINAL_DEPARTURE before DEPARTURE_CHANGED_AT,
+                             otherwise DEPARTURE_TIME
+
+  PICK_CUTOFF = effective departure - LOADING_MINUTES / 1440
+
+Active synthesized schedule rule:
+  unrounded cutoff = route's last release + ORDER_LEAD_MINUTES (60)
+  cutoff = round upward to the next 15-minute boundary
+  departure = cutoff + LOADING_MINUTES (30)
+  SH0908-1072 coverage scenario is one labeled 15-minute exception.
+
+  OPEN_LINES(s,w,T) = open item lines on truck s/work type w at T
+
+  LINES_AHEAD(s,w,T) = sum of open lines in w for every truck whose
+                       cutoff <= truck s cutoff, including s
+
+4.4 Work-type ETC, cutoff and staffing
+--------------------------------------
+
+  WT_ETC days = LINES_AHEAD / ACTUALRATELINES / 24
+  WT_READY_TIME = T + WT_ETC
+
+Status for required open work:
+  if T >= cutoff                       -> NO - CUTOFF PASSED
+  else if no positive rate             -> UNKNOWN - NO RATE
+  else if WT_READY_TIME <= cutoff       -> YES / ON TIME
+  else                                  -> NO / AT RISK
+
+  OPERATORS_NEEDED = CEILING(
+      LINES_AHEAD / (PER_PERSON_RATE * hours_to_cutoff) - 1e-9)
+
+  ADDITIONAL_OPERATORS = MAX(0, OPERATORS_NEEDED - RESOURCES)
+
+These formulas are implemented and baseline-parity tested. Operator need is only calculated for an ordinary miss before cutoff; no-rate cases return explanatory text.
+
+4.5 Truck ETC and lifecycle
+---------------------------
+
+  TRUCK_ETC = maximum required WT_ETC
+  BOTTLENECK = work type producing the maximum; if any required work type has
+               no rate, truck ETC is unknown and the no-rate area is named
+  READY_TIME = T + TRUCK_ETC
+  SLACK = PICK_CUTOFF - READY_TIME
+
+Truck status precedence:
+  1. departed: DEPARTED COMPLETE or DEPARTED - n LINES LEFT BEHIND
+  2. no released/picked work: NO WORK RELEASED YET
+  3. zero open work: ALL PICKED
+  4. snapshot at/after cutoff with open work: PICK CUTOFF PASSED - LATE
+  5. required rate unavailable: NO RATE
+  6. ready <= cutoff: ON TIME; otherwise AT RISK
+
+Missed lines at departure count released lines not picked by the departure event and remain frozen thereafter. Slack minute rounding is Excel half-away-from-zero. Display duration reproduces Excel TEXT("[h]:mm") by rounding to a second and then whole minutes. Time comparisons tolerate 1e-9 day.
+
+4.6 Uncertainty/planning calculation
+------------------------------------
+
+For each operator/work type by T:
+  operator pace = completed lines by T / LM005S1 hours in that work type
+
+For a work type with a positive point team rate:
+  observed_team_rates = current RESOURCES * each positive observed operator pace
+  RATE_LOW = minimum(point team rate and observed_team_rates)
+  RATE_HIGH = maximum(point team rate and observed_team_rates)
+  WT_ETC_LOW = LINES_AHEAD / RATE_HIGH / 24
+  WT_ETC_HIGH = LINES_AHEAD / RATE_LOW / 24
+
+Planning status uses WT_ETC_HIGH (the slower bound). The point team rate is included in the envelope. With no operator-level variation evidence, the range equals the point estimate. This is implemented/tested but is explicitly not statistical confidence and does not cover unmeasured delays.
+
+4.7 Existing-operator reallocation
+----------------------------------
+
+Candidate prerequisites:
+  - active WIPIND Y operator on a different work type;
+  - not already used in another move at that snapshot;
+  - measurable source pace when source has open work;
+  - destination familiarity from actual destination completions or explicitly
+    simulated OPERATOR_EXPERIENCE;
+  - defensible destination contribution;
+  - every open source truck remains on time at point and conservative rates.
+
+Contribution:
+  actual history -> completed destination lines / destination labor hours
+  simulated familiarity -> MIN(actual source pace,
+                               actual destination PER_PERSON_RATE)
+
+After a proposed move:
+  DEST_RATE_AFTER = current destination team rate + destination contribution
+  SOURCE_RATE_AFTER = current source team rate - operator source pace
+  source conservative rate is also reduced using the observed source floor
+  destination conservative rate adds a bounded contribution
+  ETC/ready/slack/status/resources are recalculated on both sides
+
+Selection is iterative and prefers a move that makes the destination safe, then less source priority work, more source slack and stronger conservative destination contribution. It stops only when all originally at-risk destination rows meet both point and conservative cutoff or no safe candidate remains.
+
+Active accepted moves (all simulated-familiarity provenance):
+  snapshot 9:  jmccraw, Cases WT6 -> OTC WT2; source min slack 53.44 min
+  snapshot 10: hgroff,  Cases WT6 -> OTC WT2; source min slack 68.24 min
+  snapshot 11: jmccraw, Cases WT6 -> OTC WT2; source min slack 15.45 min
+
+At snapshot 6, SH0908-1981/OTC's conservative gap is six and no move is accepted because removing any qualified candidate would make source work unsafe. The UI explicitly shows 0 / 6 and the rejection reason. At snapshots 9 and 10, one operator is allocated but a conservative shortfall of one remains; planning stays AT RISK. At snapshot 11, one move closes the conservative gap and planning becomes ON TIME.
+
+4.8 Important edge cases
+------------------------
+
+Implemented/tested: no logged-in resources, logged-in but no positive observed rate, cutoff already passed, no work released, all picked, departed miss freezing, departure changes announced mid-day, moved orders, cancelled/non-open lines, missing familiarity, unsafe source removal, exact cutoff equality and exact-integer staffing rounding.
+
+Not fully modeled: multi-day/timezone behavior, breaks, travel, congestion, equipment, replenishment, certification, transfer/setup delay, pieces/cube/weight constraints, actual staging/loading dependency and business-defined minimum source buffer.
+
+
+5. USER INTERFACE AND FEATURE STATUS
+====================================
+
+5.1 Dashboard /
+---------------
+
+User sees an auto-submit snapshot selector, analysis-time note, status KPI cards, a table of all 33 trucks and an ETC-vs-time-left chart for open trucks. Table fields: truck, door, planning status, point/range ETC, point/range ready time, cutoff, departure, planning slack, bottleneck, operator gap and open/released lines. Clicking row or truck opens detail.
+
+Source: truck_result rows. Planning status/range can differ from point status. No-rate ETC is plotted as an explicit marker rather than zero. VERIFIED by route tests for all 18 snapshots; not manually browser-tested during this report.
+
+5.2 Truck detail /truck/<shipment_id>?snapshot=n
+--------------------------------------------------
+
+User sees identity, route/door/carrier, planning status/slack, snapshot/departure/cutoff, seven KPI cards, generated reason, optional reallocation table, work types, four charts (area finish; open/slack; throughput; pickers), Orders/Work IDs tabs and alerts/actions.
+
+Reallocation names link to operator profiles. Orders show customer, stop, release, regions, work-ID count, done/items, open, state and notes. Work IDs show region, customers, order count, done/items, open, state and pickers; multi-customer case IDs are marked.
+
+The truck operator table and operator status/pace charts are intentionally absent in the current uncommitted UI, although backend detail data remains. This is VERIFIED by a test asserting their absence.
+
+5.3 Operator detail /operator/<operator_name>?snapshot=n
+-------------------------------------------------------
+
+User sees status/current area, source-data provenance warning, completed lines/pieces, observed labor time, actual rate, assigned remainder and ETC, familiarity evidence/provenance, current-area workload/cutoff, per-work-type productivity, destination eligibility, assignment history and selected move. Productive-only time is explicitly unavailable.
+
+Unknown operator returns 404. The guide mentions an optional truck query context, but current app.py ignores a truck parameter; navigation uses browser Back. This is a minor documentation mismatch, not a broken tested flow.
+
+5.4 Interactions and limitations
+-------------------------------
+
+Snapshot selectors reload server-rendered pages. Tabs use Bootstrap. Charts use Plotly. Alerts/actions are text guidance only; buttons do not execute warehouse actions. There is no authentication, editing, save/approve, live refresh, API, export or what-if form.
+
+
+6. CURRENT DATA AND CONFIGURATION
+=================================
+
+6.1 Active workbook sheets used directly
+----------------------------------------
+
+CONFIG             analysis date, filters, snapshot timeline
+TRUCK_CONFIG       30 loading minutes, 60 lead minutes, evidence rule
+LM005S1            labor replay/session segments and active WIP state
+TI102              open/released work replay by snapshot
+TI102C             completed work events, quantities, operator and time
+OB_SHIPMENT        truck/route, synthesized deadline/door/scenario metadata
+OB_ORDER           order-to-shipment relationships, release and customer fields
+OB_LINE_MAP        item/work-ID/order/work-type relationships
+OPERATOR_EXPERIENCE 15 simulated planning familiarity records
+M123/M123T         work-type IDs and descriptions
+
+6.2 Reference/result sheets
+---------------------------
+
+ETC_CALC, TRUCK_WT_ETC, TRUCK_ETC and TRUCK_REALLOCATION contain cached reference results loaded for parity. TRUCK_REALLOCATION_MOVES and presentation/check/link sheets are also documented in the application guide. Reallocation reference is generated from the Python logic and is not independent mathematical proof.
+
+6.3 Environment/runtime configuration
+-------------------------------------
+
+WORKBOOK_PATH defaults to data/workbook.xlsx.
+DATABASE_URL defaults to sqlite:///data/truck_etc.db.
+DEFAULT_SNAPSHOT defaults/currently resolves to 9 (18:15).
+Workbook CONFIG.SELECTED_SNAPSHOT_NO is 10, but the Flask default is controlled independently by .env/config.py.
+FLASK_DEBUG exists in .env, while direct python app.py explicitly invokes app.run(debug=True).
+
+No passwords/tokens were observed or reproduced. Preserve the existing .env; do not add it to reports/ZIPs if it later gains secrets.
+
+6.4 Setup and commands
+----------------------
+
+Windows setup:
+  python -m venv .venv
+  .venv\Scripts\activate
+  pip install -r requirements.txt
+
+Run:
+  .venv\Scripts\python.exe app.py
+  open http://127.0.0.1:5000
+
+Rebuild cache:
+  .venv\Scripts\python.exe -m flask --app app init-db
+
+Test:
+  .venv\Scripts\python.exe -m pytest -q
+
+The current environment passed. Dependencies are not pinned to exact versions, so a fresh future install may differ.
+
+
+7. BUG, GAP AND RISK REGISTER
+=============================
+
+ID      Sev    Status       Area / evidence / expected action
+------  -----  -----------  ---------------------------------------------------
+H-01    Med    UNRESOLVED   Working tree has nine modified/deleted paths. Current
+                            behavior passes tests but is not committed. Review the
+                            operator-panel removal, duplicate screenshot deletions
+                            and docs together; then commit without discarding work.
+
+H-02    Low    UNRESOLVED   docs/TRUCK_ETC_APPLICATION_GUIDE.md records 112 tests;
+                            the actual 10-Oct run passed 119. Update the guide and
+                            preserve the exact new validation date/scope.
+
+H-03    Med    UNRESOLVED   Dashboard footer hard-codes cutoff = departure - 30 min.
+                            If TRUCK_CONFIG.LOADING_MINUTES changes, UI text lies.
+                            Pass/render the configured value; add a regression test.
+
+H-04    Med    UNRESOLVED   UI says "South Carolina time" but engine uses naive
+                            datetimes/Excel serials with no timezone conversion.
+                            Confirm source timezone/DST and use timezone-aware data
+                            before multi-day/production operation.
+
+H-05    Med    LIMITATION   Active recommendations rely on 15 simulated familiarity
+                            rows; all three accepted moves are simulated, not verified
+                            qualifications. Replace/add authoritative certification
+                            data while preserving provenance labeling.
+
+H-06    High   BUSINESS GAP Transfer/setup time and a minimum source safety buffer
+                            are not modeled. A source may pass with only 15.45 minutes
+                            slack. Business owners must define rules before operational
+                            automation; do not invent a buffer.
+
+H-07    Med    LIMITATION   Packing, staging, actual arrival/loading and equipment/
+                            replenishment dependencies are absent. Cutoff is only
+                            departure minus fixed loading minutes. Do not claim full
+                            dock readiness or guaranteed departure.
+
+H-08    Med    LIMITATION   Empirical bounds use observed pace extremes and current
+                            resources; they are not confidence intervals and omit
+                            unmeasured delays. Preserve the disclosure in UI/docs.
+
+H-09    Med    ASSURANCE    Reallocation Excel parity is not independent because
+                            Python generated those workbook values. Add business-
+                            reviewed scenarios or an independent oracle before calling
+                            the recommendation mathematically validated.
+
+H-10    Low    UNRESOLVED   Operator label "Next work cutoff" is the earliest open
+                            cutoff in the current work type, not necessarily operator-
+                            assigned work. Relabel "Earliest open cutoff in current
+                            work type" to prevent overinterpretation.
+
+H-11    Low    UNRESOLVED   Minute-only formatting can hide seconds near cutoff, and
+                            dashboard chart clamps negative time-to-cutoff to zero.
+                            Add tooltip/near-zero detail and explicit passed marker.
+
+H-12    Med    LIMITATION   Bootstrap/Plotly CDN dependency makes styling/charts fail
+                            offline. Vendor assets or document network requirement for
+                            controlled warehouse deployment.
+
+H-13    Med    LIMITATION   Direct app execution uses Flask debug mode. Do not expose
+                            this server in production; add a production WSGI/deployment
+                            configuration, secret handling and authentication first.
+
+H-14    Low    DOC MISMATCH Guide web-route table describes optional truck context on
+                            operator URL, but app ignores it. Correct the guide or
+                            implement return context; current browser Back flow works.
+
+H-15    Info   INTENTIONAL  Backend truck detail still calculates operator table/alert
+                            data although current UI removed its table/charts. Keep if
+                            alerts/profiles need it; otherwise profile before deleting.
+
+H-16    Info   HISTORICAL   Historical DOCX describes 36 routes, 1,432 lines and temp
+                            operators. INFO/README marks it archival. Never use it as
+                            current operating guidance.
+
+H-17    Low    SCHEMA TEXT  Workbook header "WT_READY_TIME (before adding)" retains
+                            obsolete additive-labor wording. Rename only with a
+                            coordinated versioned workbook/parser/test change.
+
+Resolved and regression-covered:
+  R-01 candidate-specific source rows now feed _source_impact.
+  R-02 departed miss status is frozen at departure.
+  R-03 documentation/operator count corrected to 12.
+  R-04 late-pick inconsistent routes removed from active data.
+
+
+8. TESTING AND VALIDATION STATUS
+================================
+
+Actual test run performed for this report:
+  Date: 10-Oct-2026
+  Command: C:\Labor management\truck-etc-app\.venv\Scripts\python.exe -m pytest -q
+  Result: 119 passed in 53.21 seconds; exit code 0.
+
+Verified coverage includes:
+  - all mapped cached Excel columns for ETC_CALC, TRUCK_WT_ETC, TRUCK_ETC and TRUCK_REALLOCATION;
+  - 33 unique active shipments, 421 orders and 1,163 line IDs and key relationships;
+  - warehouse ID consistency, departure synthesis rule and no picks after departure;
+  - replay timestamps/lifecycle, quantity accounting, status IDs and assignment/work-type stability;
+  - workbook check sheet PASS/INFO results and one labeled cutoff-passed scenario;
+  - simulated familiarity separation and headcount conservation;
+  - unit scenarios for ETC, status, rounding, source/destination rates, uncertainty, iterative moves and shortfall;
+  - selected truck KPI/order/work-ID/trend/explanation/alert reconciliation;
+  - dashboard every snapshot; representative truck routes; operator profile and current absence of operator panel.
+
+Not verified during this report:
+  - Manual cross-browser visual inspection, responsive layout at devices, accessibility or CDN failure behavior.
+  - Production server/deployment/security/load/concurrency.
+  - Real WMS/LMS integration or writeback (none exists).
+  - Independent validation of the recommendation model.
+  - Business correctness of simulated qualifications, source buffer, transfer time or synthesized deadlines beyond current encoded rules.
+  - Coverage percentage was not collected.
+
+
+9. EXACT DEVELOPMENT HANDOVER
+==============================
+
+9.1 What currently works
+------------------------
+
+The complete local replay pipeline, Excel-parity baseline calculations, SQLite cache/rebuild, dashboard, truck drill-down, operator profiles, uncertainty display and conservative existing-operator recommendations work under the automated suite. The active cleaned dataset is internally consistent under tested invariants.
+
+9.2 What is broken/incomplete
+-----------------------------
+
+No failing automated test is known. Incompleteness is primarily operational/product scope: uncommitted cleanup, stale guide count, hard-coded/loading-time/timezone labels, simulated qualifications, no transfer/setup/safety policy, no staging/loading/live feeds, no authentication/writeback/audit/what-if planner and no production deployment.
+
+9.3 Last known development activity
+-----------------------------------
+
+Removal of the truck operator status/pace UI and related payload/docs, while keeping reallocation-linked operator profiles; responsive/table cleanup; duplicate screenshot cleanup; and stronger DB schema-rebuild detection for planning slack fields. All 119 tests pass on that uncommitted state.
+
+9.4 Immediate task and priority order
+-------------------------------------
+
+  P0. Preserve and review the dirty working tree. Inspect git diff; do not reset it.
+  P0. Update guide validation count/date (112 -> actual 119), confirm screenshot deletions are intended, rerun tests, then commit the coherent UI/doc/schema cleanup.
+  P1. Make the dashboard loading-minutes statement configuration-driven and correct the operator cutoff label; add tests.
+  P1. Obtain business answers/data for verified qualifications, source safety buffer, area-transfer/setup time, timezone and staging/loading dependencies.
+  P1. Add independent, business-reviewed reallocation scenarios, especially multi-move, near-zero source slack, no-rate and changed departure cases.
+  P2. Decide whether to retain or remove unused truck-operator presentation data while preserving alerts and operator profiles.
+  P2. Vendor frontend dependencies and add production WSGI/auth/audit only if deployment is in scope.
+  P3. Build the documented next product phase selected by the user: work-type page or Phase 5 what-if planning. Do not assume which one without instruction.
+
+9.5 Files to inspect first
+--------------------------
+
+  1. PROJECT_HANDOVER_CURRENT_STATUS.txt (this report)
+  2. git diff and git status
+  3. README.md
+  4. docs/TRUCK_ETC_APPLICATION_GUIDE.md
+  5. calculations/reallocation.py and calculations/truck.py
+  6. calculations/etc.py and calculations/uncertainty.py
+  7. calculations/detail.py and calculations/operator.py
+  8. app.py, models/models.py and models/database.py
+  9. templates/truck_detail.html, templates/dashboard.html and templates/operator_detail.html
+ 10. tests/test_data_integrity.py, test_excel_parity.py,
+     test_uncertainty_reallocation.py and test_app.py
+ 11. data/workbook.xlsx only through careful/read-only inspection unless a versioned workbook change is explicitly required
+
+9.6 Regression requirements after any calculation/data change
+------------------------------------------------------------
+
+  - Run the full pytest suite, not only one module.
+  - Preserve baseline Excel parity unless a coordinated business-approved workbook/schema change intentionally updates both sides.
+  - Check headcount before/after by snapshot.
+  - Check every accepted move's operator familiarity provenance, source rate subtraction, all source cutoff results, destination improvement, allocated count and remaining shortfall.
+  - Check point and planning statuses separately.
+  - Check moved-order/effective-truck relationships and departure-event miss freezing.
+  - Reconcile truck-detail totals to engine totals and render all snapshots/representative statuses.
+  - If workbook changes, verify SHA-triggered DB rebuild and workbook formula caches/check sheet.
+  - Manually inspect dashboard, truck, reallocation and operator pages if UI or labels change.
+
+9.7 Information still requiring clarification
+---------------------------------------------
+
+  - Authoritative operator certification/cross-training data.
+  - Required source safety buffer and transfer/setup duration.
+  - Whether actual destination history must always outrank simulated familiarity and how experience levels should affect ranking.
+  - Whether pieces, cube, weight, equipment, replenishment or precise task sequence must override line ETC.
+  - Actual truck arrival, staging and loading events and who owns/approves deadline changes.
+  - Source timezone/DST and production deployment timezone.
+  - Approval/writeback/audit workflow for a recommendation.
+  - Which next phase the user wants after current cleanup.
+
+
+10. FINAL CROSS-CHECK AND SOURCE-OF-TRUTH NOTES
+===============================================
+
+This report was cross-checked against the current working tree, Git status/log/diff, the active workbook through the Python engine, current templates/scripts/docs and an actual full test run. It does not claim access to unavailable prior chats or manual browser testing not performed here.
+
+Source-of-truth precedence for continuation:
+  1. Current code and active data/workbook.xlsx for what is implemented now.
+  2. Passing tests for explicitly covered behavior.
+  3. This handover and current README/guide for business intent/history.
+  4. INFO files only for historical traceability; never current behavior.
+
+Do not infer that code is correct merely because it exists. Do not infer that a recommendation is operationally safe beyond the rules/data actually modeled. Do not silently replace a business rule to force a desirable on-time result.
+
+
+INSTRUCTIONS FOR THE NEXT AI
+============================
+
+1. Read PROJECT_HANDOVER_CURRENT_STATUS.txt first.
+2. Inspect the supplied project ZIP and compare its contents, Git state (if included), file timestamps and active workbook with this report.
+3. Verify the current implementation before making changes. Run git status/diff and the full test suite in the selected project environment.
+4. Treat actual code and data/workbook.xlsx as the source of truth for current implementation, while retaining this handover's historical context, business requirements and explicit limitations.
+5. Identify and report discrepancies among code, workbook, tests, README, guide and historical requirements. Do not silently reconcile them by inventing assumptions.
+6. Preserve the uncommitted operator-panel/documentation/schema changes unless the user explicitly rejects them. Do not reset, overwrite or rebuild existing work unnecessarily.
+7. Preserve the non-negotiable reallocation rules: existing headcount only; subtract source capacity; validate all source trucks; determine the required number iteratively; retain shortfall/reason; never claim cutoff success without supporting point and conservative calculations.
+8. Keep actual and simulated familiarity visibly separate. Never present simulated planning assumptions as verified experience/certification.
+9. Ask for clarification only when an important business decision cannot be resolved from available evidence, especially source buffer, transfer time, qualifications, timezone, staging/loading and next-phase priority.
+10. Continue from the exact current development state: first finalize the dirty-tree UI/doc/schema cleanup and stale validation count, then address prioritized issues or the next user-selected phase.
+

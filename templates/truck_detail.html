@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+{% import "components/ui.html" as ui %}
+{% import "components/ready_chart.html" as rc %}
+{% set t = d.truck %}
+{% block title %}{{ ship }}{% endblock %}
+{% block header_title %}Truck details{% endblock %}
+{% block content %}
+{% call ui.intro('SHIPMENT INTELLIGENCE', ship, 'Route ' ~ t.ROUTEID ~ ' · Dock ' ~ t.DOCK_DOOR ~ ' · ' ~ t.CARRIER, 'bi-truck') %}
+  <span class="risk-badge {{ 'risk-healthy' if style == 'success' else ('risk-critical' if style == 'danger' else 'risk-risk') }}">{{ t.PLANNING_STATUS or t.TRUCK_STATUS }}</span>
+  <a href="{{ url_for('dashboard', snapshot=current.snapshot_no) }}#truck-performance" class="btn btn-soft-primary"><i class="bi bi-arrow-left"></i> All trucks</a>
+  <a class="btn btn-primary" href="{{ url_for('planner',snapshot=current.snapshot_no) }}"><i class="bi bi-person-plus"></i> Preview / Allocate operators</a>
+{% endcall %}
+<div class="detail-context"><span><i class="bi bi-clock-history"></i> As of <strong>{{ current.snapshot_time | clock }}</strong></span>
+  <span><i class="bi bi-truck"></i> Departure <strong>{{ t.DEPARTURE | sclock }}</strong></span>
+  <span><i class="bi bi-scissors"></i> Pick cutoff <strong>{{ t.PHYSICAL_CUTOFF | sclock }}</strong></span>
+  <span><i class="bi bi-shield-check"></i> Safety buffer deadline <strong>{{ t.PICK_CUTOFF | sclock }}</strong></span>
+  {% if t.PLANNING_SLACK or t.SLACK %}{% set shown_slack = t.PLANNING_SLACK or t.SLACK %}<span class="{{ 'text-danger' if shown_slack.startswith('-') else 'text-success' }}"><i class="bi bi-hourglass-split"></i> Planning slack <strong>{{ shown_slack }}</strong></span>{% endif %}
+</div>
+{% if t.NOTE %}<p class="helper-text mb-3">{{ t.NOTE }}</p>{% endif %}
+<div class="detail-metric-grid mb-3 kpi-grid">
+  {% set k = d.kpis %}
+  <div class="detail-metric-item"><div class="card surface-card h-100 detail-metric-card"><div class="card-body detail-metric-body">
+    <div class="detail-kpi-label"><span>Lines picked</span><i class="bi bi-check2-square" aria-hidden="true"></i></div><div class="fs-4 fw-semibold">{{ k.lines_picked }} / {{ k.lines_picked + k.open_lines }}</div>
+    <div class="kpi-sub text-muted">{{ k.open_lines }} open &middot; {{ ((k.lines_picked / (k.lines_picked + k.open_lines)) if (k.lines_picked + k.open_lines) else 0) | pct }} done</div></div></div></div>
+  <div class="detail-metric-item"><div class="card surface-card h-100 detail-metric-card"><div class="card-body detail-metric-body">
+    <div class="detail-kpi-label"><span>Pieces picked</span><i class="bi bi-boxes" aria-hidden="true"></i></div><div class="fs-4 fw-semibold">{{ k.pieces_picked | num }}</div>
+    <div class="kpi-sub text-muted">{{ k.open_pieces | num }} open &middot; {{ k.shorts }} short lines</div></div></div></div>
+  <div class="detail-metric-item"><div class="card surface-card h-100 detail-metric-card"><div class="card-body detail-metric-body">
+    <div class="detail-kpi-label"><span>Orders complete</span><i class="bi bi-bag-check" aria-hidden="true"></i></div><div class="fs-4 fw-semibold">{{ k.orders_done }} / {{ k.orders_total }}</div>
+    <div class="kpi-sub text-muted">work IDs {{ k.workids_done }} / {{ k.workids_total }} complete</div></div></div></div>
+  <div class="detail-metric-item"><div class="card surface-card h-100 detail-metric-card"><div class="card-body detail-metric-body">
+    <div class="detail-kpi-label"><span>ETC &rarr; ready</span><i class="bi bi-clock-history" aria-hidden="true"></i></div>
+    <div class="fs-4 fw-semibold">{% if t.OPEN_LINES and t.ETC_HOURS is not none %}{{ t.ETC_HOURS | hhmm }} &rarr; {{ t.READY_TIME | sclock }}{% else %}&mdash;{% endif %}</div>
+    {% if t.ETC_LOW_HOURS is number and t.ETC_HIGH_HOURS is number %}<div class="kpi-sub text-muted">empirical range {{ t.ETC_LOW_HOURS | hhmm }}–{{ t.ETC_HIGH_HOURS | hhmm }} &rarr; {{ t.READY_TIME_EARLY | sclock }}–{{ t.READY_TIME_LATE | sclock }}</div>{% endif %}
+    <div class="kpi-sub text-muted">bottleneck {{ t.BOTTLENECK or "none" }}</div></div></div></div>
+  <div class="detail-metric-item"><div class="card surface-card h-100 detail-metric-card"><div class="card-body detail-metric-body">
+    <div class="detail-kpi-label"><span>Operators</span><i class="bi bi-people" aria-hidden="true"></i></div><div class="fs-4 fw-semibold">{{ k.operators_worked }}</div>
+    <div class="kpi-sub text-muted">picked for this truck &middot; {{ d.operators | selectattr('status', 'equalto', 'Working') | list | length }} working now</div></div></div></div>
+  <div class="detail-metric-item"><div class="card surface-card h-100 detail-metric-card"><div class="card-body detail-metric-body">
+    <div class="detail-kpi-label"><span>Operator Gap (Legacy Baseline)</span><i class="bi bi-person-plus" aria-hidden="true"></i></div>
+    <div class="fs-4 fw-semibold" id="minimum-operator-gap">{{ d.operator_gap.display }}</div>
+    <div class="kpi-sub text-muted">{{ d.operator_gap.summary }}</div>
+    {% if d.operator_gap.details %}<div class="kpi-sub text-muted">{{ d.operator_gap.details }}</div>{% endif %}
+    <div class="kpi-sub text-muted">{{ k.operators_worked }} operators recorded for this truck (not the additional requirement)</div>
+    <a class="small strong-link" href="{{ url_for('planner',snapshot=current.snapshot_no,worktype=d.operator_gap.worktype,shipment=ship) }}">Review eligible operators &rarr;</a>
+  </div></div></div>
+  <div class="detail-metric-item"><div class="card surface-card h-100 detail-metric-card"><div class="card-body detail-metric-body">
+    <div class="detail-kpi-label"><span>Confirmed session scenario</span><i class="bi bi-shield-check" aria-hidden="true"></i></div>
+    <div class="fs-6 fw-semibold mt-1"><span class="badge text-bg-{{ (t.PLANNING_STATUS_AFTER or t.TRUCK_STATUS_AFTER) | status_style }}">{{ t.PLANNING_STATUS_AFTER or t.TRUCK_STATUS_AFTER }}</span> {{ t.PLANNING_SLACK_AFTER or t.SLACK_AFTER }}</div>
+    <div class="kpi-sub text-muted">{% if t.REALLOCATIONS %}{{ t.REALLOCATIONS }}{% if t.TIME_SAVED_MIN %} &middot; saves {{ (t.TIME_SAVED_MIN / 60) | hhmm }}{% endif %}{% else %}no eligible move{% endif %}</div></div></div></div>
+</div>
+
+<div class="info-strip"><span class="info-strip-icon"><i class="bi bi-info-circle"></i></span><p>The readiness and buffered deadline below reflect the supervisor scenario and the configured {{ ready.buffer_minutes }}-minute safety buffer. The ACTIVE data is a 10-truck synthesized replay, not actual warehouse performance; legacy automatically suggested reallocation is disabled for confirmation; proposed moves are <strong>not</strong> confirmed allocations. Use Workforce allocation to preview changes.</p></div>
+<div class="status-explainer"><span class="status-explainer-icon"><i class="bi bi-clipboard-data"></i></span><div><strong>Why this status: {{ t.PLANNING_STATUS }}</strong><p class="mb-1" id="status-reason">{{ d.why_now }}</p><p class="helper-text mb-0">{{ d.why }}</p></div></div>
+{% if t.SCENARIO_OPEN_LINES != t.HISTORY_OPEN_LINES %}<div class="info-strip scenario-strip"><span class="info-strip-icon"><i class="bi bi-diagram-3"></i></span><p><strong>Scenario replay:</strong> {{ t.HISTORY_OPEN_LINES }} line(s) were open in the recorded replay at this snapshot; with the confirmed allocation {{ t.SCENARIO_OPEN_LINES }} remain open. Statuses, ETC and the work-type table use the scenario values; order and work-ID tables below show the recorded history.</p></div>{% endif %}
+{% if d.status_history %}
+<section class="card surface-card mb-3" id="status-history">
+  <div class="card-header interior-section-header">Status history to {{ current.snapshot_time | clock }} &middot; recalculated at every snapshot</div>
+  <div class="table-responsive table-scroll"><table class="table modern-table interior-table table-sm mb-0"><thead class="sticky-top"><tr><th>Snapshot</th><th>Status</th><th class="text-end">Open lines</th><th>Conservative ready</th><th>Why (calculated)</th></tr></thead><tbody>
+  {% for h in d.status_history %}<tr class="{{ 'status-change-row' if h.changed else '' }}"><td>{{ h.time }}{% if h.changed %}<div class="cell-sub">status change</div>{% endif %}</td><td><span class="badge text-bg-{{ h.status | status_style }}">{{ h.status }}</span></td><td class="text-end">{{ h.open }}{% if h.open != h.history_open %}<div class="cell-sub">recorded {{ h.history_open }}</div>{% endif %}</td><td>{{ h.ready }}</td><td class="small">{{ h.reason }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  <div class="card-footer small text-muted">Every row is recalculated from that snapshot's open lines, logged-in pickers and measured pace, with the same rules. Nothing is set by hand.</div>
+</section>
+{% endif %}
+
+<section class="card surface-card mb-3" id="ready-time">
+  <div class="card-header interior-section-header">Truck ready time: before vs after adding operators</div>
+  <div class="card-body">{{ rc.ready_time_panel(ready, 'ready-chart') }}
+    <a class="btn btn-sm btn-soft-primary mt-3" href="{{ url_for('planner',snapshot=current.snapshot_no,worktype=d.operator_gap.worktype,shipment=ship) }}#eligible-operators"><i class="bi bi-person-plus" aria-hidden="true"></i> Select or allocate operators</a></div>
+</section>
+
+{% if d.reallocations %}
+<div class="card surface-card mb-3">
+  <div class="card-header interior-section-header">At-risk work type &middot; existing-operator reallocation</div>
+  <div class="table-responsive reallocation-scroll">
+    <table class="table modern-table interior-table table-sm align-top readable-table data-table reallocation-wide-table mb-0">
+      <colgroup>
+        <col class="col-area"><col class="col-status"><col class="col-number"><col class="col-time"><col class="col-time">
+        <col class="col-operator"><col class="col-candidates">
+        <col class="col-number"><col class="col-rate"><col class="col-time"><col class="col-time">
+        <col class="col-time"><col class="col-time"><col class="col-number"><col class="col-status">
+      </colgroup>
+      <thead><tr>
+        <th>Work type</th><th>Status before</th><th class="text-end">Operators before</th><th>ETC before</th><th>Ready before</th>
+        <th>Operator reallocated</th><th>Eligible candidates</th>
+        <th class="text-end">Operators after</th><th class="text-end">Rate after</th>
+        <th>ETC after</th><th>Ready after</th><th>Pick cutoff</th><th>Time saved</th><th>Allocated / shortfall</th><th>Final status</th>
+      </tr></thead>
+      <tbody>
+      {% for r in d.reallocations %}
+        <tr class="{% if r.status_after == 'AT RISK' %}table-danger{% else %}table-success{% endif %}">
+          <td class="fw-semibold">{{ r.worktype }} {{ r.name }}</td>
+          <td><span class="badge text-bg-danger">{{ r.status_before }}</span></td>
+          <td class="text-end">{{ r.operators_before }}</td><td>{{ r.etc_before | dur }}</td><td>{{ r.ready_before | sclock }}</td>
+          <td>{% if r.moves %}{% for m in r.moves %}<div><a class="fw-semibold" href="{{ url_for('operator', operator_name=m.operator, snapshot=current.snapshot_no) }}">{{ m.operator }}</a></div>{% endfor %}{% else %}<span class="text-danger">None</span>{% endif %}</td>
+          <td class="small long-value">{% if r.eligible_candidate_list %}<div class="candidate-grid">{% for candidate in r.eligible_candidate_list %}<div class="candidate-item">{{ candidate }}</div>{% endfor %}</div>{% else %}<span class="text-muted">None</span>{% endif %}</td>
+          <td class="text-end">{{ r.operators_after }}</td><td class="text-end">{{ r.rate_after | num(1) }}</td>
+          <td>{{ r.etc_after | dur }}{% if r.etc_after_low is number and r.etc_after_high is number %}<div class="small text-muted">range {{ r.etc_after_low | dur }}–{{ r.etc_after_high | dur }}</div>{% endif %}</td><td>{{ r.ready_after | sclock }}</td><td>{{ r.cutoff | sclock }}</td><td>{{ r.time_saved | dur }}</td>
+          <td>{{ r.allocated }} / {{ r.remaining_shortfall if r.remaining_shortfall != '' else 'unknown' }}{% if r.remaining_shortfall %}<div class="small text-danger">{{ r.no_eligible }}</div>{% endif %}</td>
+          <td><span class="badge text-bg-{{ 'danger' if r.status_after == 'AT RISK' else 'success' }}">{{ r.status_after }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="card-footer small text-muted">
+    Destination rate after = current team rate + the reallocated operator's calculated destination contribution.
+    Source rate after = current team rate &minus; that operator's observed source pace.
+    ETC = priority lines ahead &divide; rate. The range uses the observed operator-pace envelope, not an invented confidence percentage.
+    A move is allowed only when every open source truck still meets its own cutoff at both the point and conservative rates.
+    Actual familiarity and pace come from TI102C completions and LM005S1 time. Simulated familiarity is labelled as a planning assumption.
+    With no actual destination pace, contribution = MIN(actual source pace, actual destination per-person rate). Headcount never increases.
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-3 mb-3 detail-section-row">
+  <div class="col-12"><div class="card surface-card h-100 detail-metric-card">
+    <div class="card-header interior-section-header">Work types</div>
+    <div class="table-responsive"><table class="table modern-table interior-table table-sm align-middle readable-table data-table worktype-table mb-0">
+      <thead class="table-light"><tr><th>Area</th><th class="text-end">Open</th><th class="text-end" title="Open lines of trucks leaving earlier, picked first">Ahead</th>
+        <th class="text-end">Picked</th><th class="text-end">Done</th><th class="text-center" title="Working / assigned not started / idle">W/A/I</th>
+        <th class="text-end">Team rate</th><th class="text-end">ETC / range</th><th>Ready</th><th>Planning status</th>
+        <th class="text-end">+Pickers</th><th>After reallocation</th><th title="Latest temperature and humidity for this work area. Not used in ETC.">Area conditions<div class="th-sub">context only</div></th></tr></thead>
+      <tbody>
+      {% for w in d.worktypes %}
+        <tr class="{% if w.planning_status == 'AT RISK' %}table-danger{% elif w.planning_meets.startswith('UNKNOWN') %}table-warning{% endif %}">
+          <td class="fw-semibold">{{ w.worktype }} {{ w.name }}</td><td class="text-end">{{ w.open_lines }}</td><td class="text-end">{{ w.ahead_other or "" }}</td>
+          <td class="text-end">{{ w.picked }}</td><td class="text-end">{{ w.pct | pct }}</td><td class="text-center">{{ w.working }}/{{ w.assigned }}/{{ w.idle }}</td>
+          <td class="text-end">{{ w.rate | num }}</td>
+          <td class="text-end">{% if w.etc is number %}{{ w.etc | dur }}{% if w.etc_low is number and w.etc_high is number %}<div class="small text-muted">{{ w.etc_low | dur }}–{{ w.etc_high | dur }}</div>{% endif %}{% elif w.open_lines %}&mdash;{% endif %}</td>
+          <td>{{ w.ready | sclock if w.ready is number else "" }}{% if w.ready_early is number and w.ready_late is number %}<div class="small text-muted">{{ w.ready_early | sclock }}–{{ w.ready_late | sclock }}</div>{% endif %}</td><td>{{ w.planning_status }}</td>
+          <td class="text-end">{{ w.additional_conservative }}</td>
+          <td>{% if w.reallocated_in %}+{{ w.reallocated_in }} &rarr; {{ w.ready_after | sclock }} ({{ w.status_after }}){% elif w.status == 'AT RISK' %}Open workforce planner{% endif %}</td>
+          {% set ec = env_contexts.get(w.worktype|int) %}<td>{% if ec %}<a class="env-context env-{{ ec.status.split('-')[0] }}" href="{{ url_for('environment', snapshot=current.snapshot_no) }}#conditions"><i class="bi bi-thermometer-half" aria-hidden="true"></i> {{ ec.text }}</a>{% else %}<span class="text-muted">Unavailable</span>{% endif %}</td>
+        </tr>
+      {% else %}<tr><td colspan="13" class="text-muted">No work released for this truck yet.</td></tr>{% endfor %}
+      </tbody></table></div>
+    <div class="card-footer small text-muted">ETC = lines ahead &divide; team rate. Range = observed pace envelope; it excludes unmeasured travel, congestion, breaks, replenishment and equipment delays. "Ahead" = earlier/equal-cutoff work picked first. Area conditions are the latest reading for the work area (context only): they do not change ETC, ready time or status.</div>
+  </div></div>
+</div>
+
+<div class="row g-3 mb-4 detail-section-row">
+  <div class="col-xl-7"><div class="card surface-card h-100">
+    <div class="card-header interior-tabs-header p-0 border-bottom-0">
+      <ul class="nav nav-tabs" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-orders" type="button">Orders ({{ d.orders | length }})</button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-workids" type="button">Work IDs ({{ d.workids | length }})</button></li>
+      </ul>
+    </div>
+    <div class="tab-content">
+      <div class="tab-pane fade show active" id="tab-orders">
+        <div class="table-responsive table-scroll"><table class="table modern-table interior-table table-sm align-middle readable-table data-table orders-table mb-0">
+          <thead class="table-light sticky-top"><tr><th>Order</th><th>Customer</th><th>Stop</th><th>Released</th><th>Regions</th>
+            <th class="text-end">Work IDs</th><th class="text-end">Done / items</th><th class="text-end">Open</th><th>State</th><th>Notes</th></tr></thead>
+          <tbody>
+          {% for o in d.orders %}
+            <tr><td>{{ o.order }}</td><td class="small">{{ o.customer }}</td><td>{{ o.stop }}</td><td>{{ o.release | sclock }}</td><td>{{ o.worktypes }}</td>
+              <td class="text-end">{{ o.workids if o.workids is not none else "" }}</td><td class="text-end">{{ o.done }} / {{ o.lines }}</td><td class="text-end">{{ o.open or "" }}</td>
+              <td><span class="badge text-bg-{{ {'Complete':'success','In progress':'primary','Not started':'secondary','Not released':'light'}[o.state] }}">{{ o.state }}</span></td>
+              <td class="small">{{ o.flags | join('; ') }}</td></tr>
+          {% endfor %}
+          </tbody></table></div>
+      </div>
+      <div class="tab-pane fade" id="tab-workids">
+        <div class="table-responsive table-scroll"><table class="table modern-table interior-table table-sm align-middle readable-table data-table workids-table mb-0">
+          <thead class="table-light sticky-top"><tr><th>Work ID</th><th>Region</th><th>Customer(s)</th><th class="text-end">Orders</th>
+            <th class="text-end">Done / items</th><th class="text-end">Open</th><th>State</th><th>Picker(s)</th></tr></thead>
+          <tbody>
+          {% for w in d.workids %}
+            <tr><td>{{ w.workid }}{% if w.several %} <span class="badge text-bg-info flag">several customers</span>{% endif %}</td>
+              <td>{{ w.worktype }} {{ wt_names.get(w.worktype, '') }}</td><td class="small">{{ w.customers }}</td><td class="text-end">{{ w.orders }}</td>
+              <td class="text-end">{{ w.done }} / {{ w['items'] }}</td><td class="text-end">{{ w.open or "" }}</td>
+              <td><span class="badge text-bg-{{ {'Complete':'success','In progress':'primary','Waiting':'warning','Not released':'light'}[w.state] }}">{{ w.state }}</span></td>
+              <td class="small">{{ w.pickers }}</td></tr>
+          {% endfor %}
+          </tbody></table></div>
+        <div class="small text-muted p-2">Waiting = released, nobody has started it yet. A region-6 case-pick work ID can hold items of several customers; each item still belongs to its own order and truck.</div>
+      </div>
+    </div>
+  </div></div>
+  <div class="col-xl-5"><div class="card surface-card h-100">
+    <div class="card-header interior-section-header">Alerts and suggested actions</div>
+    <ul class="list-group list-group-flush interior-list">
+      {% for level, text, action in d.alerts %}
+        <li class="list-group-item compact-list-item"><span class="badge text-bg-{{ level }} me-2">{{ {'danger':'Critical','warning':'Check','info':'Info'}[level] }}</span>{{ text }}
+          <div class="small text-muted mt-1">&rarr; {{ action }}</div></li>
+      {% else %}<li class="list-group-item text-muted">Nothing needs attention for this truck.</li>{% endfor %}
+    </ul>
+  </div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/plotly.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/ready_chart.js') }}"></script>
+{% endblock %}

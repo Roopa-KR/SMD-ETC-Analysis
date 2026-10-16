@@ -1,0 +1,180 @@
+{% extends 'base.html' %}
+{% import 'components/ui.html' as ui %}
+{% import 'components/ready_chart.html' as rc %}
+{% block title %}Workforce allocation{% endblock %}
+{% block header_title %}Workforce allocation{% endblock %}
+{% block content %}
+{% call ui.intro('SUPERVISOR WORKSPACE', 'Pickup risk & workforce allocation', 'Inspect cutoff risk, test experienced-operator moves, protect source work, and confirm an advisory scenario.', 'bi-person-gear') %}
+  <span class="snapshot-context"><i class="bi bi-clock-history"></i> Snapshot {{ snapshot_no }} · {{ state.pace_info.observed_days }} recorded day(s)</span>
+  <a href="{{ url_for('dashboard', snapshot=snapshot_no) }}" class="btn btn-soft-primary"><i class="bi bi-arrow-left"></i> Dashboard</a>
+{% endcall %}
+{% for category,message in get_flashed_messages(with_categories=true) %}
+  <div role="alert" class="alert alert-{{ category }} interior-alert">{{ message }}</div>
+{% endfor %}
+<div class="info-strip"><span class="info-strip-icon"><i class="bi bi-shield-check"></i></span><p><strong>Pick cutoff</strong> = departure − loading time. <strong>Safety buffer deadline</strong> = pick cutoff − {{ ready.buffer_minutes }}-minute safety buffer (configured). Source-truck safety is enforced before reallocating. No transfer time is modeled. <strong>{{ state.pace_info.basis }}.</strong> <strong>{{ state.pace_info.label }}</strong>; this historical replay is not connected to a live WMS. Confirmed allocation moves are TEMPORARY IN THIS SUPERVISOR SESSION ONLY. Neither the original staffing records nor SQLite allocation records are changed. All demo workload and experience figures are synthetic or reference-derived, not live warehouse data.</p></div>
+<section class="card surface-card filter-surface mb-3" aria-label="Planner filters">
+  <form method="get" action="{{ url_for('planner') }}" class="planner-filter-row">
+    <div><label class="form-label" for="snapshot">Analysis snapshot</label><select class="form-select" id="snapshot" name="snapshot">{% for s in snaps %}<option value="{{ s.snapshot_no }}" {% if s.snapshot_no == snapshot_no %}selected{% endif %}>{{ s.snapshot_no }} · {{ s.snapshot_time | clock }}</option>{% endfor %}</select></div>
+    <div><label class="form-label" for="worktype">Target worktype</label><select class="form-select" id="worktype" name="worktype">{% for wt, name in wt_names.items() %}<option value="{{ wt }}" {% if wt == dest %}selected{% endif %}>WT {{ wt }} · {{ name }}</option>{% endfor %}</select></div>
+    <button type="submit" class="btn btn-primary"><i class="bi bi-arrow-repeat"></i> Update analysis</button>
+  </form>
+</section>
+<section class="card surface-card mb-3" id="pickup-risk">
+  {{ ui.panel('PICKUP RISK ANALYSIS', 'At-risk pickups', 'Work type is the allocatable pickup workload; values reflect the selected snapshot and current advisory scenario.') }}
+  <div class="table-responsive"><table class="table modern-table interior-table"><thead><tr><th>Pickup / truck</th><th>Work type</th><th>Buffered cutoff</th><th>Estimated completion</th><th>Remaining workload</th><th>Slack / delay</th><th>Risk</th><th>Area conditions<div class="th-sub">context only</div></th><th></th></tr></thead><tbody>
+  {% for p in risk_pickups %}<tr><td><a class="strong-link" href="{{ url_for('truck', shipment_id=p.shipment, snapshot=snapshot_no) }}">{{ p.shipment }}</a></td><td>WT {{ p.worktype }} · {{ p.name }}</td><td>{{ timefmt(p.deadline) }}</td><td>{{ timefmt(p.conservative_ready) }}</td><td>{{ p.open }} lines</td><td>{% if p.slack_minutes is not none %}{{ '%+.0f'|format(p.slack_minutes) }} min{% else %}—{% endif %}</td><td><span class="risk-badge {{ {'ON TIME':'risk-healthy','ALL PICKED':'risk-healthy','AT RISK':'risk-risk','NO RATE':'risk-unknown'}.get(p.status, 'risk-critical') }}">{{ p.risk }}</span></td>{% set ec = env_contexts.get(p.worktype|int) %}<td>{% if ec %}<span class="env-context env-{{ ec.status.split('-')[0] }}">{{ ec.text }}</span>{% else %}<span class="text-muted">Unavailable</span>{% endif %}</td><td><a class="btn btn-sm btn-soft-primary" href="{{ url_for('planner', snapshot=snapshot_no, worktype=p.worktype, shipment=p.shipment) }}#eligible-operators">View details</a></td></tr>
+  {% else %}<tr><td colspan="9" class="table-empty">No open pickup workload exists at this snapshot.</td></tr>{% endfor %}
+  </tbody></table></div>
+  <div class="card-footer">Area conditions are the latest temperature and humidity for the work area (<a href="{{ url_for('environment', snapshot=snapshot_no) }}">Environment</a>). They are context only and never change ETC, cutoff status or the operators recommended here. Do not ask operators to work through unsafe heat to meet a cutoff.</div>
+</section>
+<section class="card surface-card mb-3" id="ready-time">
+  {{ ui.panel('LIVE WHAT-IF ANALYSIS', 'Truck ready time: before vs after adding operators', 'Truck ' ~ shipment ~ ' · all of its open work types · updates after every selection and after Allocate.') }}
+  <div class="card-body interior-card-body">{{ rc.ready_time_panel(ready, 'planner-ready-chart') }}</div>
+</section>
+<section class="card surface-card mb-3" id="operator-recommendation">
+  <div class="card-body interior-card-body">
+    <div class="card-kicker">CALCULATED STAFFING REQUIREMENT — {{ shipment }} / WT {{ dest }}</div>
+    <div class="d-flex flex-wrap gap-3 align-items-center justify-content-between mt-2">
+      <div><h2 class="h5 mb-1">{% if recommendation.possible %}
+        {% if recommendation.additional == 0 %}No further operator required
+        {% else %}{{ recommendation.additional }} more operator{{ 's' if recommendation.additional != 1 else '' }} required{% endif %}
+        {% else %}No feasible experienced-operator combination currently available{% endif %}</h2>
+        <p class="helper-text mb-1">{{ recommendation.explanation }}</p>
+        <p class="helper-text mb-0">{{ selected|length }} operator(s) already in preview (NOT allocated).
+          {% if recommendation.operators %}Minimum feasible remaining group: <strong>{{ recommendation.operators|join(', ') }}</strong>.{% endif %}
+          {% if recommendation.truck_status and recommendation.truck_status != 'ON TIME' and recommendation.additional == 0 %}
+            <strong class="text-danger">This worktype passes, but the truck remains {{ recommendation.truck_status }} due to other worktypes.</strong>{% endif %}
+          This count is recomputed after every selection using conservative pace and source safety.</p></div>
+      <span class="risk-badge {{ 'risk-healthy' if recommendation.possible else 'risk-critical' }}">{{ 'Feasible preview' if recommendation.possible else 'Requires supervisor action' }}</span>
+    </div>
+  </div>
+</section>
+<section class="card surface-card mb-3" id="temporary-operators">
+  {{ ui.panel('REALLOCATION FIRST, THEN TEMPORARY STAFF', 'Temporary operators', shipment ~ ' · WT ' ~ dest ~ ' · ' ~ wt_names[dest] ~ ' · temporary operators are offered only when safe reallocation of existing operators cannot meet the safety buffer deadline.') }}
+  <div class="card-body interior-card-body">
+  {% set t = temporary %}
+  {% if not t.applicable %}
+    <div class="empty-panel"><i class="bi bi-check2-circle"></i><strong>No open lines</strong><p>{{ t.reason }}</p></div>
+  {% else %}
+    <div class="temp-metrics">
+      <div><span>Additional operators required in total</span><strong data-temp="total">{{ t.total_required if t.total_required is not none else 'Not feasible' }}</strong><small>{% if t.total_required is not none and t.needed %}{{ t.selected_count + t.plan.realloc|length }} reallocated + {{ t.plan.temps }} temporary{% if not t.plan.possible %} — exceeds the configured maximum of {{ t.max_count }} temporary operators{% endif %}{% elif not t.needed %}deadline already met{% else %}{{ t.temps_reason }}{% endif %}</small></div>
+      <div><span>Existing operators safely available</span><strong data-temp="available">{{ t.safe_available_count }}</strong><small>{{ t.safe_available|join(', ') if t.safe_available else 'none can move without risking their own area' }}</small></div>
+      <div><span>Selected for reallocation</span><strong data-temp="selected">{{ t.selected_count }}</strong><small>{{ t.selected|join(', ') if t.selected else 'none selected' }}</small></div>
+      <div><span>Temporary operators still required</span><strong data-temp="required">{{ t.temps_required if t.temps_required is not none else 'Not feasible' }}</strong><small>{% if not t.allowed %}{{ 'not needed' if not t.needed else 'not offered' }}{% elif t.remaining_gap %}{{ t.remaining_gap }} more than proposed{% else %}with the current selection{% endif %}</small></div>
+      <div><span>Expected ready after proposed allocation</span><strong data-temp="ready">{{ t.ready_text or 'Unknown' }}</strong><small>buffer deadline {{ timefmt(t.buffer_deadline) }} · pick cutoff {{ timefmt(t.cutoff) }}</small></div>
+      <div><span>Truck result</span><strong><span class="ready-status ready-status-{{ t.band }}" data-temp="band">{{ {'green':'Meets cutoff and buffer','yellow':'Meets cutoff, buffer not kept','red':'Misses pick cutoff','unknown':'Unknown'}[t.band] }}</span></strong><small>{{ t.proposed_count }} temporary operator(s) in this proposal</small></div>
+    </div>
+    <p class="helper-text mb-2"><strong>Why:</strong> {{ t.reason }}{% if t.next_action %} <strong>Next:</strong> {{ t.next_action }}{% endif %}</p>
+    <p class="helper-text mb-3"><span class="role-badge role-temporary">Assumed pace</span> {% if t.pace.pace %}{{ '%.1f'|format(t.pace.pace) }} lines/h per temporary operator = {{ t.pace.label }}. The cautious calculation credits {{ '%.1f'|format(t.pace.cautious) }} lines/h each (never more than the slowest measured operator in this work type).{% else %}Unavailable: this work type has no measured per-person rate yet, so no temporary pace can be assumed.{% endif %}</p>
+    {% if t.allowed %}
+      <div class="temp-actions">
+        {% if t.plan_available and (t.plan.realloc or not temp_explicit) %}
+        <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="snapshot" value="{{ snapshot_no }}"><input type="hidden" name="worktype" value="{{ dest }}"><input type="hidden" name="shipment" value="{{ shipment }}"><input type="hidden" name="action" value="temp_plan"><button class="btn btn-soft-primary" type="submit"><i class="bi bi-magic"></i> Use recommended plan{% if t.plan.realloc %}: reallocate {{ t.plan.realloc|join(', ') }} + {{ t.plan.temps }} temporary{% else %}: {{ t.plan.temps }} temporary{% endif %}</button></form>
+        {% endif %}
+        <form method="post" class="temp-count-form"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="snapshot" value="{{ snapshot_no }}"><input type="hidden" name="worktype" value="{{ dest }}"><input type="hidden" name="shipment" value="{{ shipment }}"><input type="hidden" name="action" value="temp_set">
+          <label class="form-label mb-0" for="temp_count">Temporary operators</label>
+          <input class="form-control" id="temp_count" name="temp_count" type="number" min="0" max="{{ t.max_count }}" step="1" value="{{ t.proposed_count }}" required>
+          <button class="btn btn-light" type="submit"><i class="bi bi-eye"></i> Preview</button>
+        </form>
+        <form method="post" data-confirm-temporary><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="snapshot" value="{{ snapshot_no }}"><input type="hidden" name="worktype" value="{{ dest }}"><input type="hidden" name="shipment" value="{{ shipment }}"><input type="hidden" name="scenario_version" value="{{ scenario_version }}"><input type="hidden" name="action" value="allocate_temps"><button class="btn btn-primary" type="submit" {% if not t.proposed_count %}disabled{% endif %}><i class="bi bi-person-plus-fill"></i> Allocate Temporary Operators{% if t.selected_count %} (+ {{ t.selected_count }} reallocated){% endif %}</button></form>
+        {% if temp_explicit %}<form method="post"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="snapshot" value="{{ snapshot_no }}"><input type="hidden" name="worktype" value="{{ dest }}"><input type="hidden" name="shipment" value="{{ shipment }}"><input type="hidden" name="action" value="temp_clear"><button class="btn btn-link" type="submit">Clear temporary preview</button></form>{% endif %}
+      </div>
+      <p class="helper-text mt-2 mb-0">Allocate Temporary Operators confirms the temporary operators{% if t.selected_count %} and the {{ t.selected_count }} selected reallocation(s){% endif %} together, for this session only. The ETC, ready time and risk status recalculate immediately; Reset restores the original assignments. Maximum {{ t.max_count }} per work type (configured).</p>
+    {% elif t.needed %}
+      <div class="temp-disabled"><i class="bi bi-info-circle"></i> {{ t.reason }}{% if t.next_action %} {{ t.next_action }}{% endif %}</div>
+    {% endif %}
+  {% endif %}
+  </div>
+</section>
+<div class="row g-3 mb-3">
+  <div class="col-xxl-8">
+    <section class="card surface-card h-100" id="eligible-operators">
+      <div class="dashboard-card-heading interior-card-heading heading-with-tools">
+        <div><div class="card-kicker">ELIGIBILITY & EXPERIENCE</div><h2>Available experienced operators</h2><p>Only operators with target-worktype experience are listed, including <strong>clearly labelled synthetic experience</strong>. Transferable workers first, then by individual destination pace. Unsafe workers stay visible but cannot be selected. {{ excluded_count }} operator(s) without target experience are excluded.</p></div>
+        <label class="table-search interior-search"><i class="bi bi-search" aria-hidden="true"></i><input type="search" data-candidate-search placeholder="Find operator..." aria-label="Filter eligible operators"></label>
+      </div>
+      <div class="table-responsive"><table class="table modern-table interior-table" id="candidate-table"><thead><tr><th>Operator</th><th>Current worktype</th><th>Experience</th><th>Destination pace</th><th>Availability / source safety</th><th>Preview</th></tr></thead><tbody>
+      {% for c in eligible %}
+      <tr data-candidate-row><td><a class="strong-link" href="{{ url_for('operator',operator_name=c.operator,snapshot=snapshot_no) }}">{{ c.operator }}</a></td>
+      <td>WT {{ c.source }} · {{ wt_names.get(c.source,'') }}<div class="cell-sub">{{ c.source_open_lines }} open source lines</div></td>
+      <td><span class="small">{{ c.experience }}</span></td>
+      <td>{% if c.pace is not none %}<strong class="data-value">{{ '%.1f'|format(c.pace) }} <small>lines/h</small></strong>{% else %}<span class="empty-value">Unavailable</span>{% endif %}<div class="cell-sub">{{ c.evidence }}</div></td>
+      <td><span class="risk-badge {{ 'risk-healthy' if c.safe else 'risk-critical' }}">{{ 'Available' if c.safe else 'Unsafe / unavailable' }}</span><div class="cell-sub">{{ c.reason }}</div></td>
+      <td>{% if c.selected %}<span class="risk-badge risk-risk">In preview</span>{% elif c.safe %}
+        <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="snapshot" value="{{ snapshot_no }}"><input type="hidden" name="worktype" value="{{ dest }}"><input type="hidden" name="shipment" value="{{ shipment }}"><input type="hidden" name="action" value="add"><input type="hidden" name="operator" value="{{ c.operator }}"><button class="btn btn-sm btn-primary" type="submit">Add to preview <i class="bi bi-plus"></i></button></form>
+      {% else %}<span class="text-muted small">Not selectable</span>{% endif %}</td></tr>
+      {% else %}<tr><td colspan="6" class="table-empty">No active operators have observed or explicitly simulated experience in this target worktype.<input type="hidden" name="action" value="add"></td></tr>{% endfor %}
+      </tbody></table></div><div class="search-empty" data-candidate-empty hidden>No matching operators found.</div>
+      {% if conditional %}<div class="card-body border-top interior-card-body"><div class="card-kicker">ADVISORY PLANNING ASSUMPTION</div><p class="helper-text">These currently active operators pass source safety, but their destination familiarity is a workbook-supplied simulated cross-training assumption rather than observed target-work history. They can be previewed only as an explicitly labelled advisory scenario.</p><div class="table-responsive"><table class="table modern-table interior-table mb-0"><thead><tr><th>Operator</th><th>Source</th><th>Modelled target pace</th><th>Evidence</th><th></th></tr></thead><tbody>{% for c in conditional %}<tr><td><strong>{{ c.operator }}</strong></td><td>WT {{ c.source }} · {{ wt_names.get(c.source,'') }}<div class="cell-sub">{{ c.source_open_lines }} open source lines</div></td><td>{{ '%.1f'|format(c.pace) }} lines/h</td><td><span class="risk-badge risk-risk">Planning assumption</span><div class="cell-sub">{{ c.experience }}</div></td><td><form method="post"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="snapshot" value="{{ snapshot_no }}"><input type="hidden" name="worktype" value="{{ dest }}"><input type="hidden" name="shipment" value="{{ shipment }}"><input type="hidden" name="action" value="add"><input type="hidden" name="operator" value="{{ c.operator }}"><button class="btn btn-sm btn-outline-primary" type="submit">Preview assumption</button></form></td></tr>{% endfor %}</tbody></table></div></div>{% endif %}
+    </section>
+  </div>
+  <div class="col-xxl-4">
+    <section class="card surface-card h-100" id="allocation-review">
+      {{ ui.panel('SUPERVISOR CONFIRMATION', 'Review before allocation', 'Only clicking Allocate confirms temporary in-memory moves for this supervisor session; no database writes or WMS assignment.') }}
+      <div class="card-body interior-card-body">
+        {% if comparison.steps %}
+        <ol class="move-steps">{% for step in comparison.steps %}<li><div class="move-step-top"><strong>{{ step.operator }}</strong><span class="risk-badge risk-healthy">Step {{ loop.index }}</span></div><p>WT {{ step.source }} → WT {{ dest }} · {{ step.experience }}</p><div class="cell-sub">{{ '%.1f'|format(step.pace) }} lines/h · {{ step.evidence }}</div><div class="move-finish">Target conservative finish: <strong>{{ timefmt(step.projected.finish) }}</strong> <span class="risk-badge {{ 'risk-healthy' if step.projected.status == 'ON TIME' else 'risk-critical' }}">{{ step.projected.status }}</span></div><div class="cell-sub">Source WT {{ step.source }}: {{ timefmt(step.source_before.finish) }} → {{ timefmt(step.source_after.finish) }} · cutoff {{ timefmt(step.source_after.deadline) }} · {{ step.source_after.status }}</div>
+        <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="snapshot" value="{{ snapshot_no }}"><input type="hidden" name="worktype" value="{{ dest }}"><input type="hidden" name="shipment" value="{{ shipment }}"><input type="hidden" name="action" value="remove"><input type="hidden" name="operator" value="{{ step.operator }}"><button class="btn btn-sm btn-link px-0" type="submit">Remove operator</button></form></li>{% endfor %}</ol>
+        <div class="cell-sub mb-2">Target truck: <strong>{{ comparison.truck_before.status if comparison.truck_before else '—' }} → {{ comparison.truck_after.status if comparison.truck_after else '—' }}</strong><br>Scenario impact: {{ comparison.aggregate_before.on_time }} on time / {{ comparison.aggregate_before.at_risk }} at risk → {{ comparison.aggregate_after.on_time }} on time / {{ comparison.aggregate_after.at_risk }} at risk; total delay {{ comparison.aggregate_before.total_delay_minutes|num(0) }} → {{ comparison.aggregate_after.total_delay_minutes|num(0) }} min.</div><form method="post" data-confirm-allocation><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="snapshot" value="{{ snapshot_no }}"><input type="hidden" name="worktype" value="{{ dest }}"><input type="hidden" name="scenario_version" value="{{ scenario_version }}"><input type="hidden" name="shipment" value="{{ shipment }}"><input type="hidden" name="action" value="allocate"><button class="btn btn-primary w-100" type="submit"><i class="bi bi-check2-circle"></i> Allocate Operator{{ 's' if comparison.steps|length > 1 else '' }}</button></form>
+        <form class="mt-2" method="post"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="snapshot" value="{{ snapshot_no }}"><input type="hidden" name="worktype" value="{{ dest }}"><input type="hidden" name="shipment" value="{{ shipment }}"><input type="hidden" name="action" value="clear"><button class="btn btn-light w-100" type="submit">Clear preview</button></form>
+        {% else %}<div class="empty-panel"><i class="bi bi-people"></i><strong>No operators selected yet</strong><p>Select a safe, experienced operator to preview the effect before confirming a move.</p></div>{% endif %}
+        {% if session_moves or session_temps %}<div class="session-summary" id="session-allocations"><strong><i class="bi bi-check2-circle"></i> Confirmed in this session</strong>
+          <ul class="allocation-list">
+            {% for m in session_moves %}<li><span class="role-badge role-reallocated">Reallocated</span> <strong>{{ m.operator }}</strong> WT {{ m.source }} → WT {{ m.dest }} <span class="cell-sub">from snapshot {{ m.start_snapshot }}</span></li>{% endfor %}
+            {% for t in session_temps %}<li><span class="role-badge role-temporary">Temporary</span> <strong>{{ t.count }} × {{ t.id }}</strong> → WT {{ t.dest }} for {{ t.shipment }} <span class="cell-sub">assumed {{ t.pace_pct }}% pace · from snapshot {{ t.start_snapshot }}</span></li>{% endfor %}
+          </ul>
+          <p>Stored temporarily in this supervisor's server session. Re-evaluated in subsequent snapshots; reset or session expiry restores the original assignments. NOT saved in SQLite, the workbook or the WMS.</p>
+        {% if state.skipped %}<p class="text-danger">Not applied now: {{ state.skipped|join(', ') }} (source changed, inactive, pace missing, or unsafe).</p>{% endif %}
+        {% if state.temporaries_skipped %}<p class="text-danger">Temporary operators not applied now: {{ state.temporaries_skipped|map(attribute='id')|join(', ') }} (no measured pace in that work type at this snapshot).</p>{% endif %}
+        <form method="post"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="snapshot" value="{{ snapshot_no }}"><input type="hidden" name="worktype" value="{{ dest }}"><input type="hidden" name="shipment" value="{{ shipment }}"><input type="hidden" name="action" value="reset_scenario"><button type="submit" class="btn btn-sm btn-outline-danger">Reset allocations (restore original assignments)</button></form></div>{% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+<div class="row g-3 mb-3">
+  <div class="col-xl-5" id="loading-settings">
+    <section class="card surface-card h-100">
+      {{ ui.panel('SHIPMENT SETTINGS', 'Loading time', default_loading ~ ' minutes by default · per-truck overrides persist after restart.') }}
+      <div class="card-body interior-card-body">
+        <form method="post" action="{{ url_for('planner') }}" class="row g-3 align-items-end">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="action" value="loading"><input type="hidden" name="snapshot" value="{{ snapshot_no }}"><input type="hidden" name="worktype" value="{{ dest }}">
+          <div class="col-12"><label class="form-label" for="shipment">Select truck</label><select class="form-select" name="shipment" id="shipment" data-loading-picker data-target-base="{{ url_for('planner',snapshot=snapshot_no,worktype=dest) }}">{% for t in state.trucks %}<option value="{{ t.shipment }}" {% if shipment == t.shipment %}selected{% endif %}>{{ t.shipment }} · departs {{ timefmt(t.departure) }}</option>{% endfor %}</select></div>
+          <div class="col-sm-7"><label class="form-label" for="minutes">Loading duration (minutes)</label><input id="minutes" class="form-control" name="minutes" type="number" step="1" min="0" max="1440" value="{{ loading }}" required></div>
+          <div class="col-sm-5"><button type="submit" class="btn btn-soft-primary w-100"><i class="bi bi-floppy"></i> Save override</button></div>
+          <div class="col-12"><p class="helper-text mb-0"><i class="bi bi-info-circle"></i> Saving {{ default_loading }} minutes restores the default for this truck. Pick cutoff = departure − loading time.</p></div>
+        </form>
+      </div>
+    </section>
+  </div>
+  <div class="col-xl-7">
+    <section class="card surface-card h-100" id="source-impact">
+      {{ ui.panel('SOURCE AREA PROTECTION', 'Effect on the operators\' current areas', 'Selected operators are removed from their current work type; every truck there must stay on time.') }}
+      <div class="card-body interior-card-body">
+        {% if comparison.steps %}
+          <div id="source-impact-chart" class="planner-chart" role="img" aria-label="Source worktype conservative readiness before and after each proposed operator removal"></div>
+          <p class="helper-text">Each source deadline includes that truck's loading time and the configured {{ ready.buffer_minutes }}-minute buffer. A source may not be made unsafe by allocation.</p>
+        {% else %}<div class="empty-panel"><i class="bi bi-shield-check"></i><strong>No operator selected for {{ shipment }} / WT {{ dest }}</strong><p>Add an operator to preview the effect on the work type they are moved out of.</p></div>{% endif %}
+      </div>
+    </section>
+  </div>
+</div>
+<section class="card surface-card mb-3" id="assignment-risk">
+  {{ ui.panel('TASK-LEVEL VISIBILITY', 'At-risk individual picking assignments', flagged|length ~ ' flagged assignments · risk inherited from the relevant truck/worktype.') }}
+  <div class="table-responsive table-scroll"><table class="table modern-table interior-table"><thead class="sticky-top"><tr><th>Assignment</th><th>Truck</th><th>Worktype</th><th>Open lines</th><th>Risk</th><th>Why flagged</th></tr></thead><tbody>
+  {% for a in flagged %}<tr><td><strong>{{ a.assignment }}</strong></td><td><a href="{{ url_for('truck',shipment_id=a.shipment,snapshot=snapshot_no) }}">{{ a.shipment }}</a></td><td>WT {{ a.worktype }}</td><td>{{ a.lines }}</td><td><span class="risk-badge risk-critical">{{ a.status }}</span></td><td>{{ a.reason }}</td></tr>
+  {% else %}<tr><td colspan="6" class="table-empty">No at-risk assignments in this conservative scenario.</td></tr>{% endfor %}</tbody></table></div>
+  <div class="card-note">Assignment-level flags are inherited from truck/worktype conservative status. No separate assignment ETC or independently validated task deadline is modeled.</div>
+</section>
+<section class="card surface-card" id="truck-status">
+  {{ ui.panel('FLEET READINESS', 'Truck completion overview', 'Buffered cutoff, conservative finish and projected slack in the current scenario.') }}
+  <div class="table-responsive"><table class="table modern-table interior-table"><thead><tr><th>Truck</th><th>Status</th><th>Departure</th><th>Loading</th><th>Physical cutoff</th><th>Buffered deadline</th><th>Conservative finish</th><th>Slack</th></tr></thead><tbody>
+  {% for t in state.trucks %}<tr><td><a class="strong-link" href="{{ url_for('truck',shipment_id=t.shipment,snapshot=snapshot_no) }}">{{ t.shipment }}</a></td><td><span class="risk-badge {{ {'ON TIME':'risk-healthy','ALL PICKED':'risk-healthy','AT RISK':'risk-risk','NO RATE':'risk-unknown'}.get(t.status, 'risk-critical') }}">{{ t.status }}</span></td><td>{{ timefmt(t.departure) }}</td><td>{{ t.loading_minutes }} min</td><td>{{ timefmt(t.cutoff) }}</td><td>{{ timefmt(t.deadline) }}</td><td>{{ timefmt(t.conservative_ready) }}</td><td>{{ t.slack_minutes if t.slack_minutes is not none else '—' }}</td></tr>{% endfor %}
+  </tbody></table></div>
+</section>
+<script id="planner-data" type="application/json">{{ plot|tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/plotly.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/planner.js') }}" defer></script>
+<script src="{{ url_for('static', filename='js/ready_chart.js') }}" defer></script>
+{% endblock %}

@@ -1,0 +1,155 @@
+"""Database tables for the calculated Truck ETC results (SQLAlchemy 2.0, SQLite now, PostgreSQL-ready)."""
+from __future__ import annotations
+
+import datetime as dt
+
+from sqlalchemy import Boolean, DateTime, Float, Integer, String, Text, UniqueConstraint
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Snapshot(Base):
+    __tablename__ = "snapshot"
+    snapshot_no: Mapped[int] = mapped_column(Integer, primary_key=True)
+    snapshot_time: Mapped[dt.datetime] = mapped_column(DateTime)
+
+
+class TruckResult(Base):
+    """One row per snapshot x truck (workbook sheet TRUCK_ETC)."""
+    __tablename__ = "truck_result"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    snapshot_no: Mapped[int] = mapped_column(Integer, index=True)
+    snapshot_time: Mapped[dt.datetime] = mapped_column(DateTime)
+    shipment_id: Mapped[str] = mapped_column(String(20), index=True)
+    route_id: Mapped[str | None] = mapped_column(String(20))
+    carrier: Mapped[str | None] = mapped_column(String(40))
+    dock_door: Mapped[str | None] = mapped_column(String(10))
+    departure: Mapped[dt.datetime] = mapped_column(DateTime)
+    pick_cutoff: Mapped[dt.datetime] = mapped_column(DateTime)
+    hours_to_cutoff: Mapped[float] = mapped_column(Float)
+    lines_picked: Mapped[int] = mapped_column(Integer)
+    open_lines: Mapped[int] = mapped_column(Integer)
+    lines_released: Mapped[int] = mapped_column(Integer)
+    pct_picked: Mapped[float | None] = mapped_column(Float)
+    etc_hours: Mapped[float | None] = mapped_column(Float)          # None = NULL (no rate)
+    bottleneck: Mapped[str | None] = mapped_column(String(30))
+    ready_time: Mapped[dt.datetime | None] = mapped_column(DateTime)
+    status: Mapped[str] = mapped_column(String(60))
+    meets_departure: Mapped[str | None] = mapped_column(String(10))
+    slack_minutes: Mapped[int | None] = mapped_column(Integer)
+    slack_text: Mapped[str | None] = mapped_column(String(12))
+    operator_gap: Mapped[str | None] = mapped_column(String(40))    # extra pickers on the bottleneck (or reason)
+    etc_after_hours: Mapped[float | None] = mapped_column(Float)
+    ready_time_after: Mapped[dt.datetime | None] = mapped_column(DateTime)
+    status_after: Mapped[str | None] = mapped_column(String(60))
+    slack_after_text: Mapped[str | None] = mapped_column(String(12))
+    time_saved_minutes: Mapped[float | None] = mapped_column(Float)
+    reallocations: Mapped[str | None] = mapped_column(String(300))
+    scenario: Mapped[str | None] = mapped_column(String(40))
+    note: Mapped[str | None] = mapped_column(String(300))
+    etc_low_hours: Mapped[float | None] = mapped_column(Float)
+    etc_high_hours: Mapped[float | None] = mapped_column(Float)
+    ready_time_early: Mapped[dt.datetime | None] = mapped_column(DateTime)
+    ready_time_late: Mapped[dt.datetime | None] = mapped_column(DateTime)
+    planning_status: Mapped[str | None] = mapped_column(String(60))
+    uncertainty_changes_risk: Mapped[bool] = mapped_column(Boolean, default=False)
+    planning_operator_gap: Mapped[str | None] = mapped_column(String(40))
+    planning_slack_text: Mapped[str | None] = mapped_column(String(12))
+    etc_after_high_hours: Mapped[float | None] = mapped_column(Float)
+    ready_time_after_late: Mapped[dt.datetime | None] = mapped_column(DateTime)
+    planning_status_after: Mapped[str | None] = mapped_column(String(60))
+    planning_slack_after_text: Mapped[str | None] = mapped_column(String(12))
+
+
+class WorktypeResult(Base):
+    """One row per snapshot x truck x work type (workbook sheet TRUCK_WT_ETC)."""
+    __tablename__ = "worktype_result"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    snapshot_no: Mapped[int] = mapped_column(Integer, index=True)
+    shipment_id: Mapped[str] = mapped_column(String(20), index=True)
+    worktype: Mapped[int] = mapped_column(Integer)
+    worktype_name: Mapped[str | None] = mapped_column(String(40))
+    open_lines: Mapped[int] = mapped_column(Integer)
+    lines_ahead: Mapped[int] = mapped_column(Integer)
+    resources: Mapped[int] = mapped_column(Integer)
+    rate: Mapped[float | None] = mapped_column(Float)
+    per_person_rate: Mapped[float | None] = mapped_column(Float)
+    operators_needed: Mapped[str | None] = mapped_column(String(40))
+    wt_etc_hours: Mapped[float | None] = mapped_column(Float)
+    ready_time: Mapped[dt.datetime | None] = mapped_column(DateTime)
+    meets: Mapped[str | None] = mapped_column(String(30))
+    additional_operators: Mapped[str | None] = mapped_column(String(40))
+    status: Mapped[str | None] = mapped_column(String(30))
+    resources_after: Mapped[int] = mapped_column(Integer)
+    rate_after: Mapped[float | None] = mapped_column(Float)
+    reallocated_in: Mapped[str | None] = mapped_column(String(300))
+    reallocated_out: Mapped[str | None] = mapped_column(String(300))
+    reallocation_reason: Mapped[str | None] = mapped_column(String(1000))
+    familiarity_evidence: Mapped[str | None] = mapped_column(String(1000))
+    eligible_candidates: Mapped[str | None] = mapped_column(String(3000))
+    no_eligible_operator: Mapped[str | None] = mapped_column(String(1000))
+    wt_etc_after_hours: Mapped[float | None] = mapped_column(Float)
+    ready_time_after: Mapped[dt.datetime | None] = mapped_column(DateTime)
+    meets_after: Mapped[str | None] = mapped_column(String(30))
+    status_after: Mapped[str | None] = mapped_column(String(30))
+    rate_low: Mapped[float | None] = mapped_column(Float)
+    rate_high: Mapped[float | None] = mapped_column(Float)
+    observed_pace_count: Mapped[int] = mapped_column(Integer, default=0)
+    uncertainty_evidence: Mapped[str | None] = mapped_column(String(500))
+    wt_etc_low_hours: Mapped[float | None] = mapped_column(Float)
+    wt_etc_high_hours: Mapped[float | None] = mapped_column(Float)
+    ready_time_early: Mapped[dt.datetime | None] = mapped_column(DateTime)
+    ready_time_late: Mapped[dt.datetime | None] = mapped_column(DateTime)
+    planning_meets: Mapped[str | None] = mapped_column(String(30))
+    planning_status: Mapped[str | None] = mapped_column(String(30))
+    operators_needed_conservative: Mapped[str | None] = mapped_column(String(40))
+    additional_operators_conservative: Mapped[str | None] = mapped_column(String(40))
+    rate_after_low: Mapped[float | None] = mapped_column(Float)
+    rate_after_high: Mapped[float | None] = mapped_column(Float)
+    wt_etc_after_low_hours: Mapped[float | None] = mapped_column(Float)
+    wt_etc_after_high_hours: Mapped[float | None] = mapped_column(Float)
+    ready_time_after_early: Mapped[dt.datetime | None] = mapped_column(DateTime)
+    ready_time_after_late: Mapped[dt.datetime | None] = mapped_column(DateTime)
+    planning_meets_after: Mapped[str | None] = mapped_column(String(30))
+    planning_status_after: Mapped[str | None] = mapped_column(String(30))
+
+
+class ReallocationMove(Base):
+    """One accepted, headcount-neutral operator move with source/destination impact."""
+    __tablename__ = "reallocation_move"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    snapshot_no: Mapped[int] = mapped_column(Integer, index=True)
+    destination_worktype: Mapped[int] = mapped_column(Integer, index=True)
+    destination: Mapped[str] = mapped_column(String(40))
+    operator: Mapped[str] = mapped_column(String(80), index=True)
+    source_worktype: Mapped[int] = mapped_column(Integer)
+    source: Mapped[str] = mapped_column(String(40))
+    eligibility_reason: Mapped[str] = mapped_column(String(1000))
+    familiarity_evidence: Mapped[str] = mapped_column(String(1500))
+    familiarity_type: Mapped[str] = mapped_column(String(50))
+    destination_pace_basis: Mapped[str] = mapped_column(String(300))
+    source_rate_before: Mapped[float | None] = mapped_column(Float)
+    source_operator_pace: Mapped[float | None] = mapped_column(Float)
+    source_rate_after: Mapped[float | None] = mapped_column(Float)
+    source_min_slack_after: Mapped[float | None] = mapped_column(Float)
+    source_shipment_id: Mapped[str | None] = mapped_column(String(30))
+    source_etc_before_hours: Mapped[float | None] = mapped_column(Float)
+    source_ready_before: Mapped[dt.datetime | None] = mapped_column(DateTime)
+    source_status_before: Mapped[str | None] = mapped_column(String(30))
+    source_etc_after_hours: Mapped[float | None] = mapped_column(Float)
+    source_ready_after: Mapped[dt.datetime | None] = mapped_column(DateTime)
+    source_pick_cutoff: Mapped[dt.datetime | None] = mapped_column(DateTime)
+    source_status_after: Mapped[str | None] = mapped_column(String(30))
+    destination_rate_before: Mapped[float | None] = mapped_column(Float)
+    operator_destination_pace: Mapped[float | None] = mapped_column(Float)
+    destination_rate_after: Mapped[float | None] = mapped_column(Float)
+    destination_etc_before_hours: Mapped[float | None] = mapped_column(Float)
+    destination_ready_before: Mapped[dt.datetime | None] = mapped_column(DateTime)
+    destination_etc_after_hours: Mapped[float | None] = mapped_column(Float)
+    destination_ready_after: Mapped[dt.datetime | None] = mapped_column(DateTime)
+    destination_pick_cutoff: Mapped[dt.datetime | None] = mapped_column(DateTime)
+    time_saved_minutes: Mapped[float | None] = mapped_column(Float)
+    destination_status_after: Mapped[str | None] = mapped_column(String(30))

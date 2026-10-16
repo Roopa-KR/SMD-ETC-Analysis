@@ -1,0 +1,251 @@
+{% extends 'base.html' %}
+{% import 'components/ui.html' as ui %}
+{% block title %}Environment{% endblock %}
+{% block header_title %}Environment{% endblock %}
+{% macro fresh_badge(f) -%}
+<span class="risk-badge {{ {'current':'risk-healthy','stale':'risk-risk','missing':'risk-unknown'}[f] }}">{{ {'current':'Current','stale':'Stale','missing':'Missing'}[f] }}</span>
+{%- endmacro %}
+{% macro quality_badge(q) -%}
+<span class="risk-badge {{ {'valid':'risk-healthy','suspect':'risk-risk','invalid':'risk-critical'}[q] }}">{{ q|capitalize }}</span>
+{%- endmacro %}
+{% macro label_badge(label) -%}
+<span class="data-label data-label-{{ label|lower }}">{{ label }}</span>
+{%- endmacro %}
+{% block content %}
+{% call ui.intro('ENVIRONMENTAL CONDITIONS & WORKFORCE PLANNING', 'Environment', 'Temperature and relative humidity by work area at ' ~ (current.snapshot_time | clock) ~ ' (' ~ tz.name ~ ' local time). Context for supervisors; not used in ETC.', 'bi-thermometer-half') %}
+  <div class="snapshot-context"><i class="bi bi-clock-history" aria-hidden="true"></i> As of <strong>{{ current.snapshot_time | clock }}</strong><span class="context-divider"></span> snapshot {{ current.snapshot_no }} of {{ snaps|length }}</div>
+  <a href="#record" class="btn btn-primary"><i class="bi bi-pencil-square" aria-hidden="true"></i> Record a reading</a>
+{% endcall %}
+
+<div class="info-strip"><span class="info-strip-icon"><i class="bi bi-info-circle"></i></span><p><strong>Context only.</strong> Readings never change ETC, ready time, safety buffer, cutoff status or operator allocations; the existing ETC is always used. <strong>Times</strong> are stored in UTC and shown in {{ tz.name }} local time; "as of" is the selected replay snapshot. Manual and sensor readings are labelled <strong>ACTUAL</strong> (as entered or measured, not yet checked against a reference instrument); demo readings are labelled <strong>SYNTHETIC</strong> and are never used as evidence.{% if tz.note %} <strong class="text-danger">{{ tz.note }}</strong>{% endif %}</p></div>
+{% set flashes = get_flashed_messages(with_categories=true) %}
+{% set done = request.args.get('done', '') if request.args.get('done', '') in ('record', 'sensors', 'heat-safety', 'demo') else '' %}
+{% macro flash_here(name) -%}
+{% if flashes and done == name %}<div class="env-flash" aria-live="polite">{% for category, message in flashes %}<div role="alert" class="alert alert-{{ category }} interior-alert">{{ message }}</div>{% endfor %}</div>{% endif %}
+{%- endmacro %}
+{{ flash_here('') }}
+{% if c.synthetic_present %}<div class="alert alert-info synthetic-banner" role="status"><i class="bi bi-clipboard-data" aria-hidden="true"></i> <strong>SYNTHETIC demo readings are loaded.</strong> They demonstrate the statuses (current, stale, missing, suspect, invalid, silent sensor) and are not SMD warehouse conditions. <a href="#demo">Delete them</a> before entering real readings.</div>{% endif %}
+
+{% set with_reading = c.zones|selectattr('freshness','equalto','current')|list|length %}
+{% set sensors_ok = c.devices|selectattr('status','equalto','ok')|list|length %}
+<div class="kpi-panel" aria-label="Environmental summary">
+  {{ ui.metric('bi-thermometer-half', 'Zones with a current reading', with_reading ~ ' / ' ~ c.zones|length, 'Latest valid reading ≤ ' ~ cfg.ENV_STALE_MINUTES ~ ' min old', 'success' if with_reading == c.zones|length and c.zones else 'amber') }}
+  {{ ui.metric('bi-exclamation-triangle', 'Needs attention', c.attention|length, 'Missing, stale, suspect, invalid or silent sensor', 'danger' if c.attention else 'success') }}
+  {{ ui.metric('bi-broadcast', 'Sensors reporting', sensors_ok ~ ' / ' ~ c.devices|length, 'Registered devices; API ' ~ ('enabled' if api_enabled else 'disabled'), 'primary') }}
+  {{ ui.metric('bi-calculator', 'Environment-adjusted ETC', 'Not available', 'No validated, approved method (Phase 4). Baseline ETC in use.', 'primary') }}
+</div>
+
+<section class="card surface-card mb-3" id="conditions">
+  {{ ui.panel('LATEST BY ZONE', 'Zone conditions', 'Latest valid or suspect reading at or before ' ~ (current.snapshot_time | clock) ~ '. Invalid values are never shown as a condition.') }}
+  <div class="table-responsive"><table class="table modern-table interior-table mb-0"><thead><tr><th>Zone / work area</th><th class="text-end">Temperature</th><th class="text-end">Humidity</th><th>Reading time</th><th>Freshness</th><th>Source</th><th>Quality</th></tr></thead><tbody>
+  {% for z in c.zones %}{% set r = z.reading %}
+    <tr><td><strong>{{ z.zone.name }}</strong><div class="cell-sub">{{ z.zone.zone_code }} · {{ z.zone.source }}</div></td>
+      <td class="text-end">{{ '%.1f °C'|format(r.temperature_c) if r else '—' }}</td>
+      <td class="text-end">{{ '%.0f %%RH'|format(r.humidity_pct) if r else '—' }}</td>
+      <td>{% if r %}{{ z.local_time }}<div class="cell-sub">{{ z.age_minutes }} min before as-of</div>{% else %}No reading{% endif %}</td>
+      <td>{{ fresh_badge(z.freshness) }}</td>
+      <td>{% if r %}{{ z.method_label }} {{ label_badge(r.data_label) }}{% if r.device_key %}<div class="cell-sub">Device {{ r.device_key }}</div>{% endif %}{% else %}—{% endif %}</td>
+      <td>{% if r %}{{ quality_badge(r.quality) }}{% if r.quality_note %}<div class="cell-sub">{{ r.quality_note }}</div>{% endif %}{% else %}—{% endif %}{% if z.latest_invalid %}<div class="cell-sub text-danger">Latest value received was invalid</div>{% endif %}</td></tr>
+  {% else %}<tr><td colspan="7" class="table-empty">No zones registered.</td></tr>{% endfor %}
+  </tbody></table></div>
+  <div class="card-footer">Zones are the six M123 work types (verified source data; LM005S1 has no zone IDs) plus any zone a supervisor adds. Current ≤ {{ cfg.ENV_STALE_MINUTES }} min; stale after that; missing = no reading at or before the as-of time. Thresholds are prototype defaults to confirm with the client.</div>
+</section>
+
+<section class="card surface-card mb-3" id="attention">
+  {{ ui.panel('DATA QUALITY', 'Missing, stale and sensors requiring attention', c.attention|length ~ ' item(s) at ' ~ (current.snapshot_time | clock)) }}
+  <ul class="attention-list">
+  {% for a in c.attention %}<li class="attention-{{ a.kind }}"><span class="risk-badge {{ {'missing':'risk-unknown','stale':'risk-risk','suspect':'risk-risk','invalid':'risk-critical','sensor':'risk-critical'}[a.kind] }}">{{ {'missing':'Missing','stale':'Stale','suspect':'Suspect','invalid':'Invalid','sensor':'Sensor'}[a.kind] }}</span> {{ a.text }}</li>
+  {% else %}<li><span class="risk-badge risk-healthy">OK</span> Every zone has a current, valid reading and every registered sensor is reporting.</li>{% endfor %}
+  </ul>
+</section>
+
+<section class="card surface-card mb-3" id="cutoff-impact">
+  {{ ui.panel('ETC & CUTOFF INTEGRATION', 'Potential cutoff impact', 'Work that misses its buffered deadline under the BASELINE ETC, with the area\'s latest conditions beside it.') }}
+  <div class="table-responsive"><table class="table modern-table interior-table mb-0"><thead><tr><th>Truck</th><th>Work type</th><th>Baseline status<div class="th-sub">CALCULATED · measured pace</div></th><th>Conservative finish</th><th>Buffered deadline</th><th class="text-end">Slack</th><th>Area conditions<div class="th-sub">context only</div></th><th>Environment-adjusted<div class="th-sub">EXPERIMENTAL</div></th></tr></thead><tbody>
+  {% for r in cutoff %}<tr><td><a class="strong-link" href="{{ url_for('truck', shipment_id=r.shipment, snapshot=current.snapshot_no) }}">{{ r.shipment }}</a></td><td>WT {{ r.worktype }} · {{ r.name }}<div class="cell-sub">{{ r.open }} open lines</div></td><td><span class="risk-badge {{ 'risk-unknown' if r.status == 'NO RATE' else 'risk-critical' }}">{{ r.risk }}</span></td><td>{{ r.ready }}</td><td>{{ r.deadline }}</td><td class="text-end">{{ '%+.0f min'|format(r.slack) if r.slack is not none else '—' }}</td><td>{% if r.condition %}<span class="env-context env-{{ r.condition.status.split("-")[0] }}"><i class="bi bi-thermometer-half" aria-hidden="true"></i> {{ r.condition.text }}</span>{% else %}Unavailable{% endif %}</td><td><span class="text-muted">Not available</span></td></tr>
+  {% else %}<tr><td colspan="8" class="table-empty">No open work misses its buffered deadline under the baseline ETC at this snapshot.</td></tr>{% endfor %}
+  </tbody></table></div>
+  <div class="card-footer"><strong>Measured vs experimental.</strong> Baseline status is calculated from measured picking pace exactly as on the dashboard, truck page and planner, and is unchanged by readings. No environment-adjusted ETC is calculated: there is no validated, approved adjustment, and an unvalidated one could hide a genuine cutoff risk. Warm conditions in an at-risk area are a prompt to check on people and breaks, never a reason to push operators through unsafe heat to make a cutoff.</div>
+</section>
+
+<section class="card surface-card mb-3" id="trends">
+  {{ ui.panel('TRENDS', 'Temperature and humidity, last 6 hours', 'Zones with at least ' ~ cfg.ENV_TREND_MIN_READINGS ~ ' valid or suspect readings in the 6 hours before ' ~ (current.snapshot_time | clock) ~ '.') }}
+  <div class="card-body interior-card-body">
+  {% if trends %}
+    {% if trends|selectattr('synthetic')|list %}<p class="helper-text"><span class="data-label data-label-synthetic">SYNTHETIC</span> Series marked SYNTHETIC in the legend are demo data, not SMD conditions.</p>{% endif %}
+    <div class="env-trend-grid">
+      <div><h3 class="env-chart-title">Temperature (°C)</h3><div id="env-temp-chart" class="chart env-chart" role="img" aria-label="Temperature by zone over time; values in the table below."></div></div>
+      <div><h3 class="env-chart-title">Relative humidity (%RH)</h3><div id="env-rh-chart" class="chart env-chart" role="img" aria-label="Relative humidity by zone over time; values in the table below."></div></div>
+    </div>
+    <details class="accessibility-data mt-2"><summary>Trend data as a table</summary><div class="table-responsive"><table class="table table-sm"><thead><tr><th>Zone</th><th>Local time</th><th class="text-end">°C</th><th class="text-end">%RH</th><th>Quality</th></tr></thead><tbody>
+      {% for s in trends %}{% for i in range(s.times|length) %}<tr><td>{{ s.zone }}{% if s.synthetic %} (SYNTHETIC){% endif %}</td><td>{{ s.times[i] }}</td><td class="text-end">{{ s.temperature[i] }}</td><td class="text-end">{{ s.humidity[i] }}</td><td>{{ 'suspect' if s.suspect[i] else 'valid' }}</td></tr>{% endfor %}{% endfor %}
+    </tbody></table></div></details>
+  {% else %}
+    <p class="helper-text mb-0">Not enough readings for a trend yet. A trend is drawn once a zone has {{ cfg.ENV_TREND_MIN_READINGS }} or more readings in the 6 hours before the as-of time; until then the zone table above is the reliable view.</p>
+  {% endif %}
+  </div>
+</section>
+
+<div class="row g-3 mb-3">
+  <div class="col-xl-5"><section class="card surface-card h-100" id="record">
+    {{ ui.panel('PHASE 1 · MANUAL ENTRY', 'Record a reading', 'For authorized users. Use a calibrated or reference thermometer/hygrometer where possible.') }}
+    {{ flash_here('record') }}
+    <div class="card-body interior-card-body">
+      <form method="post" class="env-form" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="snapshot" value="{{ current.snapshot_no }}"><input type="hidden" name="action" value="reading">
+        <label class="form-label" for="env-zone">Zone / work area</label>
+        <select class="form-select" id="env-zone" name="zone" required>{% for z in zones %}<option value="{{ z.zone_code }}">{{ z.name }}</option>{% endfor %}</select>
+        <div class="row g-2 mt-1">
+          <div class="col-6"><label class="form-label" for="env-temp">Temperature (°C)</label><input class="form-control" id="env-temp" name="temperature" type="number" step="0.1" min="{{ cfg.ENV_TEMP_MIN_C }}" max="{{ cfg.ENV_TEMP_MAX_C }}" required></div>
+          <div class="col-6"><label class="form-label" for="env-rh">Relative humidity (%)</label><input class="form-control" id="env-rh" name="humidity" type="number" step="1" min="0" max="100" required></div>
+        </div>
+        <label class="form-label mt-2" for="env-time">Reading time ({{ tz.name }} local)</label>
+        <input class="form-control" id="env-time" name="reading_time" type="datetime-local" value="{{ default_time }}" required>
+        <label class="form-label mt-2" for="env-by">Recorded by</label>
+        <input class="form-control" id="env-by" name="recorded_by" maxlength="60" placeholder="Name or initials">
+        {% if entry_key_required %}<label class="form-label mt-2" for="env-key">Entry key</label><input class="form-control" id="env-key" name="entry_key" type="password" autocomplete="off" required>{% endif %}
+        <button class="btn btn-primary mt-3" type="submit"><i class="bi bi-plus-circle" aria-hidden="true"></i> Save reading</button>
+      </form>
+      <p class="helper-text mt-3 mb-0">Values outside {{ cfg.ENV_TEMP_MIN_C|int }}…{{ cfg.ENV_TEMP_MAX_C|int }} °C or 0…100 %RH, unknown zones and times more than 5 minutes in the future are rejected. A change of more than {{ cfg.ENV_MAX_STEP_C|int }} °C or {{ cfg.ENV_MAX_STEP_RH|int }} %RH within 30 minutes is stored as <em>suspect</em>. The same zone and time is stored once.</p>
+    </div>
+  </section></div>
+  <div class="col-xl-7"><section class="card surface-card h-100" id="recent">
+    {{ ui.panel('READING LOG', 'Recent readings', 'Newest first, all times (up to 40). Kept in a separate database from WMS/LMS data.') }}
+    <div class="table-responsive table-scroll"><table class="table modern-table interior-table mb-0"><thead class="sticky-top"><tr><th>Local time</th><th>Zone</th><th class="text-end">°C</th><th class="text-end">%RH</th><th>Method</th><th>Label</th><th>Quality</th><th>By / device</th></tr></thead><tbody>
+    {% for r in recent %}<tr><td>{{ r.local_time }}</td><td>{{ r.zone_code }}</td><td class="text-end">{{ '%.1f'|format(r.temperature_c) if r.temperature_c is not none else '—' }}</td><td class="text-end">{{ '%.0f'|format(r.humidity_pct) if r.humidity_pct is not none else '—' }}</td><td>{{ r.method }}</td><td>{{ label_badge(r.data_label) }}</td><td>{{ quality_badge(r.quality) }}{% if r.quality_note %}<div class="cell-sub">{{ r.quality_note }}</div>{% endif %}</td><td>{{ r.device_key or r.recorded_by or '—' }}</td></tr>
+    {% else %}<tr><td colspan="8" class="table-empty">No readings recorded yet. Enter one, or load the labelled synthetic demo set below.</td></tr>{% endfor %}
+    </tbody></table></div>
+  </section></div>
+</div>
+
+<section class="card surface-card mb-3" id="analysis">
+  {{ ui.panel('PHASE 2 · EXPERIMENTAL', 'Conditions and productivity: association analysis', analysis.summary) }}
+  <div class="card-body interior-card-body">
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="card-kicker">EVIDENCE NEEDED BEFORE ANY CONCLUSION</div>
+        <table class="table table-sm env-check-table"><thead><tr><th>Check</th><th>Now</th><th>Required</th><th></th></tr></thead><tbody>
+        {% for ch in analysis.checks %}<tr><td>{{ ch.item }}</td><td>{{ ch.value }}</td><td>{{ ch.required }}</td><td>{% if ch.ok %}<span class="risk-badge risk-healthy">Met</span>{% else %}<span class="risk-badge risk-unknown">Not met</span>{% endif %}</td></tr>{% endfor %}
+        </tbody></table>
+        <p class="helper-text">Only valid ACTUAL readings count (synthetic, suspect and invalid readings are excluded). Productivity = lines picked ÷ distinct pickers, per work type and clock hour, from TI102C pick times.</p>
+      </div>
+      <div class="col-lg-6">
+        <div class="card-kicker">INPUTS NOT AVAILABLE</div>
+        <ul class="env-plain-list">{% for name, why in analysis.unavailable %}<li><strong>{{ name }}.</strong> {{ why }}</li>{% endfor %}</ul>
+        <p class="helper-text mb-0"><strong>Association is not causation.</strong> Time of day, shift pattern, workload mix and staffing change together with temperature. No fixed percentage penalty is assumed, and nothing here changes ETC.</p>
+      </div>
+    </div>
+    {% if analysis.results %}
+    <div class="card-kicker mt-3">RESULTS · EXPERIMENTAL</div>
+    <div class="table-responsive"><table class="table modern-table interior-table"><thead><tr><th>Variable</th><th class="text-end">Paired hours</th><th class="text-end">Spearman ρ</th><th>95 % interval</th><th class="text-end">Slope (lines/picker-h per unit)</th><th>Reading</th></tr></thead><tbody>
+    {% for r in analysis.results %}<tr><td>{{ 'Temperature (°C)' if r.variable == 'temperature_c' else 'Relative humidity (%)' }}</td><td class="text-end">{{ r.n }}</td><td class="text-end">{{ '%.2f'|format(r.rho) }}</td><td>{{ '%.2f'|format(r.ci_low) }} to {{ '%.2f'|format(r.ci_high) }}</td><td class="text-end">{{ '%.2f'|format(r.slope) }}</td><td>{{ r.conclusion }}</td></tr>{% endfor %}
+    </tbody></table></div>
+    {% endif %}
+    <details class="mt-2"><summary class="env-summary-toggle">Work-type productivity {{ 'trend' if analysis.productivity_is_trend else 'summary (not a trend)' }} · CALCULATED from the replay</summary>
+      <p class="helper-text mt-2">{% if analysis.productivity_is_trend %}Spans {{ analysis.productivity_days }} days.{% else %}The replay covers {{ analysis.productivity_days }} day of <strong>synthesized</strong> picking, so this is a summary for orientation, not a reliable trend.{% endif %}</p>
+      <div class="table-responsive"><table class="table table-sm"><thead><tr><th>Work type</th><th class="text-end">Hours with picking</th><th class="text-end">Lines</th><th class="text-end">Median lines / picker-hour</th><th class="text-end">Range</th></tr></thead><tbody>
+      {% for p in productivity %}<tr><td>WT {{ p.worktype }} · {{ p.name }}</td><td class="text-end">{{ p.hours }}</td><td class="text-end">{{ p.lines }}</td><td class="text-end">{{ '%.1f'|format(p.median) }}</td><td class="text-end">{{ '%.1f'|format(p.low) }}–{{ '%.1f'|format(p.high) }}</td></tr>
+      {% else %}<tr><td colspan="5">No picking data.</td></tr>{% endfor %}
+      </tbody></table></div>
+    </details>
+  </div>
+</section>
+
+<section class="card surface-card mb-3" id="sensors">
+  {{ ui.panel('PHASE 3 · SENSOR INTEGRATION (SOFTWARE ONLY)', 'Sensors and zones', 'No hardware has been purchased, installed or tested. The device registry and API are ready for a future pilot.') }}
+    {{ flash_here('sensors') }}
+  <div class="table-responsive"><table class="table modern-table interior-table mb-0"><thead><tr><th>Device</th><th>Zone</th><th>Description</th><th>Label</th><th>Status at {{ current.snapshot_time | clock }}</th></tr></thead><tbody>
+  {% for d in c.devices %}<tr><td><strong>{{ d.device.device_id }}</strong></td><td>{{ d.device.zone_code }}</td><td>{{ d.device.description or '—' }}</td><td>{{ label_badge(d.device.data_label) }}</td><td><span class="risk-badge {{ {'ok':'risk-healthy','attention':'risk-critical'}.get(d.status, 'risk-unknown') }}">{{ {'ok':'Reporting','attention':'Requires attention'}.get(d.status, 'Not yet active') }}</span><div class="cell-sub">{{ d.note }}</div></td></tr>
+  {% else %}<tr><td colspan="5" class="table-empty">No sensors registered. Manual entry is the Phase 1 method.</td></tr>{% endfor %}
+  </tbody></table></div>
+  <div class="card-body interior-card-body border-top">
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="card-kicker">REGISTER A DEVICE</div>
+        <form method="post" class="env-form row g-2" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="snapshot" value="{{ current.snapshot_no }}"><input type="hidden" name="action" value="device">
+          <div class="col-sm-6"><label class="form-label" for="dev-id">Device identifier</label><input class="form-control" id="dev-id" name="device_id" maxlength="40" required></div>
+          <div class="col-sm-6"><label class="form-label" for="dev-zone">Zone</label><select class="form-select" id="dev-zone" name="zone">{% for z in zones %}<option value="{{ z.zone_code }}">{{ z.name }}</option>{% endfor %}</select></div>
+          <div class="col-12"><label class="form-label" for="dev-desc">Description (location, sensor type)</label><input class="form-control" id="dev-desc" name="description" maxlength="120"></div>
+          {% if entry_key_required %}<div class="col-12"><label class="form-label" for="dev-key">Entry key</label><input class="form-control" id="dev-key" name="entry_key" type="password" autocomplete="off"></div>{% endif %}
+          <div class="col-12"><button class="btn btn-soft-primary" type="submit">Register device</button></div>
+        </form>
+        <div class="card-kicker mt-3">ADD A ZONE</div>
+        <form method="post" class="env-form row g-2" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="snapshot" value="{{ current.snapshot_no }}"><input type="hidden" name="action" value="zone">
+          <div class="col-sm-4"><label class="form-label" for="zone-code">Code</label><input class="form-control" id="zone-code" name="zone_code" maxlength="20" placeholder="e.g. DOCK"></div>
+          <div class="col-sm-8"><label class="form-label" for="zone-name">Name</label><input class="form-control" id="zone-name" name="zone_name" maxlength="80"></div>
+          <div class="col-sm-8"><label class="form-label" for="zone-wt">Linked work type (optional)</label><select class="form-select" id="zone-wt" name="worktype"><option value="">None</option>{% for wt, name in wt_names|dictsort %}<option value="{{ wt }}">WT {{ wt }} · {{ name }}</option>{% endfor %}</select></div>
+          {% if entry_key_required %}<div class="col-sm-4"><label class="form-label" for="zone-key">Entry key</label><input class="form-control" id="zone-key" name="entry_key" type="password" autocomplete="off"></div>{% endif %}
+          <div class="col-12"><button class="btn btn-soft-primary" type="submit">Add zone</button></div>
+        </form>
+      </div>
+      <div class="col-lg-6">
+        <div class="card-kicker">SENSOR API</div>
+        {% if api_enabled %}<p><span class="risk-badge risk-healthy">Enabled</span> Bearer token set in <code>.env</code>.</p>{% else %}<p><span class="risk-badge risk-unknown">Disabled</span> Set <code>ENV_INGEST_TOKEN</code> in <code>.env</code> to accept sensor readings.</p>{% endif %}
+        <pre class="env-code">POST /api/environment/readings
+Authorization: Bearer &lt;ENV_INGEST_TOKEN&gt;
+Content-Type: application/json
+
+{"device_id": "&lt;registered id&gt;",
+ "temperature_c": 26.4,
+ "humidity_pct": 58,
+ "reading_time": "2026-09-08T18:20:00-04:00"}</pre>
+        <p class="helper-text mb-0">One object or a list of up to 500. Unregistered devices and times without a UTC offset are rejected; out-of-range sensor values are stored as <em>invalid</em> so the device shows as needing attention; repeats are reported as duplicates. A device silent for more than {{ cfg.ENV_DEVICE_SILENT_MINUTES }} min requires attention. Read-only status: <code>GET /api/environment/zones?snapshot={{ current.snapshot_no }}</code>.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="card surface-card mb-3" id="heat-safety">
+  {{ ui.panel('SUPERVISOR AWARENESS', 'Hydration and heat safety', 'Information to support awareness. It does not diagnose anyone or replace occupational-health or safety advice.') }}
+    {{ flash_here('heat-safety') }}
+  <div class="card-body interior-card-body">
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <ul class="env-plain-list">
+          <li><strong>Water close to the work.</strong> Provide cool drinking water and encourage people to drink regularly, not only when thirsty. NIOSH suggests about 1 cup (8 oz) every 15–20 minutes for moderate work in heat lasting under 2 hours, and generally no more than 6 cups an hour.</li>
+          <li><strong>Electrolytes for long sweating.</strong> When sweating lasts several hours, NIOSH and OSHA point to drinks with electrolytes. Coconut water or electrolyte drinks are options to <em>evaluate</em> under your workplace guidance; they are not mandatory and not a proven productivity measure.</li>
+          <li><strong>Rest and recovery.</strong> Allow rest and water breaks when someone feels heat discomfort, in a cooler place away from heat sources. OSHA: "In hot conditions, skipping breaks is not safe!"</li>
+          <li><strong>New and returning workers.</strong> Build up time in heat gradually (NIOSH: over 7–14 days) and give unacclimatized people lighter work and more frequent rest.</li>
+          <li><strong>Cutoffs never override safety.</strong> Do not ask operators to keep working in unsafe heat to meet a truck cutoff. Escalate the cutoff instead (temporary operators, loading or departure changes, customer communication).</li>
+          <li><strong>Temperature and humidity are not a heat-stress measurement.</strong> Heat stress also depends on radiant heat, air movement, workload and clothing. Where a heat-safety assessment is needed, use an on-site WBGT meter or a qualified occupational-health assessment.</li>
+        </ul>
+        <p class="helper-text mb-0">Sources: <a href="https://www.cdc.gov/niosh/heat-stress/recommendations/index.html" target="_blank" rel="noopener">NIOSH workplace recommendations</a> · <a href="https://www.osha.gov/heat-exposure/water-rest-shade" target="_blank" rel="noopener">OSHA Water. Rest. Shade.</a> · <a href="https://www.osha.gov/heat-exposure/hazards" target="_blank" rel="noopener">OSHA heat hazard recognition (WBGT)</a></p>
+      </div>
+      <div class="col-lg-6">
+        <div class="card-kicker">SITE INFORMATION · CLIENT-DOCUMENTED</div>
+        {% for topic, label, hint in [('hydration_stations','Hydration stations','Where drinking water and electrolyte options are available, by zone'),('break_policy','Break policy','Rest and hydration break rules that apply on this site'),('procedures','Heat procedures & contacts','Escalation steps, first-aid contacts, who to call')] %}
+        {% set n = notes.get(topic) %}
+        <form method="post" class="env-form mb-3" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="snapshot" value="{{ current.snapshot_no }}"><input type="hidden" name="action" value="note"><input type="hidden" name="topic" value="{{ topic }}">
+          <label class="form-label" for="note-{{ topic }}">{{ label }}</label>
+          <textarea class="form-control" id="note-{{ topic }}" name="text" rows="2" maxlength="4000" placeholder="{{ hint }} (not yet documented)">{{ n.text if n else '' }}</textarea>
+          <div class="d-flex gap-2 align-items-center mt-1 flex-wrap">
+            <input class="form-control form-control-sm env-note-by" name="recorded_by" maxlength="60" placeholder="Updated by" aria-label="Updated by">
+            {% if entry_key_required %}<input class="form-control form-control-sm env-note-by" name="entry_key" type="password" placeholder="Entry key" aria-label="Entry key" autocomplete="off">{% endif %}
+            <button class="btn btn-sm btn-soft-primary" type="submit">Save</button>
+            <span class="cell-sub">{% if n %}Updated {{ n.updated_utc[:16].replace('T', ' ') }} UTC by {{ n.updated_by }}{% else %}Not yet documented by the client{% endif %}</span>
+          </div>
+        </form>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="card surface-card mb-3" id="demo">
+  {{ ui.panel('DEMONSTRATION DATA', 'Synthetic demo readings', 'For demonstrating the feature only. Never used as evidence; always labelled SYNTHETIC.') }}
+    {{ flash_here('demo') }}
+  <div class="card-body interior-card-body d-flex gap-2 flex-wrap align-items-center">
+    <form method="post" novalidate class="d-flex gap-2 align-items-center"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="snapshot" value="{{ current.snapshot_no }}"><input type="hidden" name="action" value="load_synthetic">{% if entry_key_required %}<input class="form-control form-control-sm env-note-by" name="entry_key" type="password" placeholder="Entry key" aria-label="Entry key" autocomplete="off">{% endif %}<button class="btn btn-outline-secondary" type="submit"><i class="bi bi-clipboard-data" aria-hidden="true"></i> Load synthetic demo readings ({{ current.snapshot_time.strftime('%d-%b-%Y') }})</button></form>
+    <form method="post" novalidate class="d-flex gap-2 align-items-center"><input type="hidden" name="csrf_token" value="{{ csrf }}"><input type="hidden" name="snapshot" value="{{ current.snapshot_no }}"><input type="hidden" name="action" value="delete_synthetic">{% if entry_key_required %}<input class="form-control form-control-sm env-note-by" name="entry_key" type="password" placeholder="Entry key" aria-label="Entry key" autocomplete="off">{% endif %}<button class="btn btn-outline-danger" type="submit" {% if not c.synthetic_present %}disabled{% endif %}><i class="bi bi-trash" aria-hidden="true"></i> Delete all synthetic readings</button></form>
+    <p class="helper-text mb-0 w-100">The demo set covers 16:00–20:30 with a generic pattern (not SMD conditions): WT 5 left missing, WT 3 going stale, a suspect jump in WT 4, and a demo sensor in WT 6 that sends one invalid value and then goes silent.</p>
+  </div>
+</section>
+<script type="application/json" id="env-trend-data">{{ trends | tojson }}</script>
+{% endblock %}
+{% block scripts %}
+{% if trends %}<script src="{{ url_for('static', filename='vendor/plotly.min.js') }}"></script>{% endif %}
+<script src="{{ url_for('static', filename='js/environment.js') }}" defer></script>
+{% endblock %}

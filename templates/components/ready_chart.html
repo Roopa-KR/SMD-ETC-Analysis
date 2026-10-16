@@ -1,0 +1,45 @@
+{# v10 shared "Truck ready time: before vs after adding operators" panel.
+   Every value is calculated in calculations/ready_comparison.py from the same conservative
+   engine as the dashboard and planner. The browser only draws it (static/js/ready_chart.js). #}
+{% macro ready_time_panel(rc, chart_id) %}
+<div class="ready-compare" data-ready-chart data-chart-id="{{ chart_id }}">
+  <div class="ready-deadlines" aria-label="Deadline calculation">
+    <span><i class="bi bi-clock" aria-hidden="true"></i> Now <strong>{{ rc.now_text }}</strong></span>
+    <span><i class="bi bi-truck" aria-hidden="true"></i> Departure <strong>{{ rc.departure_text }}</strong></span>
+    <span class="ready-deadline-cutoff"><i class="bi bi-flag" aria-hidden="true"></i> Pick cutoff <strong>{{ rc.cutoff_text }}</strong> <small>= departure − {{ rc.loading_minutes }} min loading</small></span>
+    <span class="ready-deadline-buffer"><i class="bi bi-shield-check" aria-hidden="true"></i> Safety buffer deadline <strong>{{ rc.buffer_deadline_text }}</strong> <small>= cutoff − {{ rc.buffer_minutes }} min buffer</small></span>
+  </div>
+  <div id="{{ chart_id }}" class="ready-chart" role="img"
+       aria-label="Projected truck ready time before and after adding operators, compared with the pick cutoff {{ rc.cutoff_text }} and safety buffer deadline {{ rc.buffer_deadline_text }}"></div>
+  <ul class="ready-legend" aria-label="Colour key">
+    <li><span class="ready-swatch ready-swatch-green" aria-hidden="true"></span><strong>Green · On time</strong> ready by the safety buffer deadline</li>
+    <li><span class="ready-swatch ready-swatch-yellow" aria-hidden="true"></span><strong>Yellow · At risk</strong> before the pick cutoff, inside the buffer</li>
+    <li><span class="ready-swatch ready-swatch-red" aria-hidden="true"></span><strong>Red · Pick cutoff passed</strong> after the pick cutoff</li>
+    <li><span class="ready-swatch ready-swatch-etc" aria-hidden="true"></span><strong>Blue · ETC</strong> time needed to finish the remaining picking</li>
+    {% if rc.scenarios|selectattr('temporary')|list %}<li><span class="role-badge role-temporary">Temporary</span> rows with temporary operators use an ASSUMED pace</li>{% endif %}
+  </ul>
+  <div class="table-responsive">
+    <table class="table modern-table interior-table ready-table mb-0">
+      <thead><tr><th>Scenario</th><th class="text-end">Reallocated</th><th class="text-end">Temporary</th><th>ETC</th><th>Projected ready</th><th>vs buffer deadline ({{ rc.buffer_deadline_text }})</th><th>vs pick cutoff ({{ rc.cutoff_text }})</th><th>Status</th></tr></thead>
+      <tbody>
+      {% for s in rc.scenarios %}
+        <tr data-ready-row="{{ s.key }}" data-band="{{ s.band }}">
+          <td><strong>{{ s.title }}</strong>{% if s.subtitle %}<div class="cell-sub">{{ s.subtitle }}</div>{% endif %}{% if s.note %}<div class="cell-sub text-danger">{{ s.note }}</div>{% endif %}</td>
+          <td class="text-end">{% if s.key == 'before' %}—{% else %}+{{ s.reallocated }}{% endif %}</td>
+          <td class="text-end">{% if s.key == 'before' %}—{% elif s.temporary %}<span class="role-badge role-temporary">+{{ s.temporary }}</span>{% else %}+0{% endif %}</td>
+          <td><span class="ready-etc">{{ s.etc_text or '—' }}</span></td>
+          <td><strong>{{ s.ready_text or ('All picked' if s.all_picked else 'Unknown') }}</strong>{% if s.bottleneck %}<div class="cell-sub">slowest area: {{ s.bottleneck }}</div>{% endif %}</td>
+          <td>{% if s.vs_buffer %}<span class="{{ 'ready-early' if s.vs_buffer[0] else 'ready-late' }}">{{ s.vs_buffer[1] }}</span>{% else %}—{% endif %}</td>
+          <td>{% if s.vs_cutoff %}<span class="{{ 'ready-early' if s.vs_cutoff[0] else 'ready-late' }}">{{ s.vs_cutoff[1] }}</span>{% else %}—{% endif %}</td>
+          <td><span class="ready-status ready-status-{{ s.band }}"><i class="bi {{ {'green':'bi-check-circle-fill','yellow':'bi-exclamation-triangle-fill','red':'bi-x-octagon-fill','unknown':'bi-question-circle-fill'}[s.band] }}" aria-hidden="true"></i> {{ s.band_label }}</span></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if rc.message %}<p class="ready-message"><i class="bi bi-info-circle" aria-hidden="true"></i> {{ rc.message }}</p>{% endif %}
+  {% if rc.steps %}<p class="helper-text mb-0">Operators added: {% for st in rc.steps %}<strong>{{ st.operator }}</strong> WT {{ st.source }} {{ st.source_name }} → WT {{ st.dest }} {{ st.dest_name }} ({{ '%.1f'|format(st.pace) }} lines/h; source area after move: {{ st.source_status_after }}{% if st.source_ready_after %}, ready {{ st.source_ready_after }} vs {{ st.source_deadline }}{% endif %}){{ '; ' if not loop.last else '.' }}{% endfor %}</p>{% endif %}
+  <p class="helper-text mb-0">Projected ready = the cautious (conservative-pace) time the truck's slowest open area finishes; ETC = projected ready − now. Each added operator's own pace is added to the destination area and removed from their current area, and every truck in that area must stay on time. Temporary operators are proposed only when safe reallocation cannot meet the deadline, at an assumed pace. Selected and recommended moves are <strong>not allocated</strong> until Allocate is clicked; confirmed allocations last for this supervisor session only.</p>
+  <script id="{{ chart_id }}-data" type="application/json">{{ rc | tojson }}</script>
+</div>
+{% endmacro %}

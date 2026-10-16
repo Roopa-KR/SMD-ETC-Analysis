@@ -1,0 +1,27 @@
+{# Shared presentation-only UI macros; no calculations or business rules. #}
+{% macro intro(kicker, title, subtitle, icon='bi-grid-1x2') -%}
+<div class="dashboard-intro interior-intro">
+  <div class="interior-heading">
+    <div class="eyebrow"><span class="live-dot"></span> {{ kicker }}</div>
+    <h1><i class="bi {{ icon }} interior-title-icon" aria-hidden="true"></i> {{ title }}</h1>
+    <p>{{ subtitle }}</p>
+  </div>
+  <div class="dashboard-actions">{{ caller() if caller is defined else '' }}</div>
+</div>
+{%- endmacro %}
+{% macro panel(kicker, title, subtitle='') -%}
+<div class="dashboard-card-heading interior-card-heading">
+  <div>
+    {% if kicker %}<div class="card-kicker">{{ kicker }}</div>{% endif %}
+    <h2>{{ title }}</h2>
+    {% if subtitle %}<p>{{ subtitle }}</p>{% endif %}
+  </div>
+</div>
+{%- endmacro %}
+{% macro metric(icon, label, value, note, tone='primary') -%}
+<div class="stat-card interior-metric">
+  <div class="stat-header"><span>{{ label }}</span><span class="stat-icon tone-{{ tone }}"><i class="bi {{ icon }}" aria-hidden="true"></i></span></div>
+  <div class="stat-number">{{ value }}</div>
+  <div class="stat-meta">{{ note }}</div>
+</div>
+{%- endmacro %}

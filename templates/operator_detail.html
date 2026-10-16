@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% import "components/ui.html" as ui %}
+{% block title %}Operator {{ o.name }}{% endblock %}
+{% block header_title %}Operator profile{% endblock %}
+{% block content %}
+{% call ui.intro('OPERATOR INTELLIGENCE', 'Operator ' ~ o.name, 'Synthetic demonstration pace, worktype familiarity and session-only allocation eligibility.', 'bi-person-badge') %}
+  <span class="risk-badge {{ 'risk-healthy' if o.status == 'Working' else ('risk-risk' if o.status == 'Assigned, not started' else 'risk-unknown') }}">{{ o.status }}</span>
+  <a href="{{ url_for('operators', snapshot=current.snapshot_no) }}" class="btn btn-soft-primary"><i class="bi bi-arrow-left"></i> Operators</a>
+  <a href="{{ url_for('planner', snapshot=current.snapshot_no) }}" class="btn btn-primary"><i class="bi bi-person-gear"></i> Workforce planner</a>
+{% endcall %}
+<div class="detail-context"><span><i class="bi bi-clock-history"></i> Snapshot <strong>{{ current.snapshot_time | clock }}</strong></span><span><i class="bi bi-diagram-3"></i> Current area <strong>WT {{ o.current_worktype }} {{ o.current_worktype_name }}</strong> {% if temporary_move %}<span class="risk-badge risk-risk">Temporary → WT {{ temporary_move.dest }} {{ wt_names[temporary_move.dest] }}</span>{% else %}<span class="cell-sub">Original assignment</span>{% endif %}</span></div>
+<div class="info-strip provenance-strip"><span class="info-strip-icon"><i class="bi bi-info-circle"></i></span><p><strong>Data provenance:</strong> all records shown are part of the SYNTHETIC 10-truck demonstration and are not measured monthly workplace performance. The 10-truck pick queue comes from filtered reference events; labor duration is scaled per work type to the share of picked lines kept (v11). Cross-training profiles are explicit SIMULATED PLANNING ASSUMPTIONS.</p></div>
+
+<div class="detail-metric-grid operator-metric-grid mb-3">
+  {{ ui.metric('bi-check2-square', 'Completed work', o.lines_total ~ ' lines', (o.pieces_total | num) ~ ' pieces', 'primary') }}
+  {{ ui.metric('bi-clock-history', 'Logged-in time', (o.working_hours | num(2)) ~ ' h', 'Includes waiting; picking time is shown under Planning pace', 'amber') }}
+  {{ ui.metric('bi-speedometer2', 'Logged-time pace', ((o.actual_rate | num(1)) ~ ' lines/h') if o.actual_rate is number else '—', 'Completed lines ÷ logged-in hours (Excel equation)', 'success') }}
+  {{ ui.metric('bi-lightning-charge', 'Planning pace', ((o.planning_pace | num(1)) ~ ' lines/h') if o.planning_pace is number else '—', o.pace_basis ~ '; used for ETC and allocation', 'primary') }}
+  {{ ui.metric('bi-box-arrow-in-right', 'Assigned remaining', o.remaining_lines ~ ' lines', (o.remaining_pieces | num) ~ ' pieces · ETC ' ~ ((o.etc | dur) if o.etc is number else 'unavailable'), 'primary') }}
+</div>
+<div class="row g-3 mb-3 detail-section-row">
+  <div class="col-lg-6"><div class="card surface-card h-100"><div class="card-header interior-section-header">Work-type familiarity</div>
+    <div class="table-responsive"><table class="table modern-table interior-table table-sm readable-table data-table familiarity-table mb-0"><thead><tr><th>Work type</th><th>Experience</th><th>Provenance</th><th>Evidence</th></tr></thead><tbody>
+      {% for f in o.familiarity %}<tr><td>{{ f.worktype }} {{ f.name }}</td><td>{{ f.level }}</td><td class="provenance-cell"><span class="badge text-bg-{{ 'success' if f.provenance == 'ACTUAL HISTORICAL' else 'warning' }}">{{ f.provenance }}</span></td><td class="small long-value">{{ f.evidence }}</td></tr>{% else %}<tr><td colspan="4" class="text-muted">No familiarity evidence is available.</td></tr>{% endfor %}
+    </tbody></table></div></div></div>
+  <div class="col-lg-6"><div class="card surface-card h-100"><div class="card-header interior-section-header">Current workload and cutoff</div><div class="card-body">
+    <dl class="row mb-0"><dt class="col-sm-5">Current work type</dt><dd class="col-sm-7">WT {{ o.current_worktype }} {{ o.current_worktype_name }}</dd>
+      <dt class="col-sm-5">Status</dt><dd class="col-sm-7">{{ o.status }}</dd><dt class="col-sm-5">Remaining assigned</dt><dd class="col-sm-7">{{ o.remaining_lines }} lines / {{ o.remaining_pieces | num }} pieces</dd>
+      <dt class="col-sm-5">Operator ETC</dt><dd class="col-sm-7">{% if o.etc is number %}{{ o.etc | dur }}{% else %}Unavailable: no measured current-work-type pace{% endif %}</dd>
+      <dt class="col-sm-5">Next work cutoff</dt><dd class="col-sm-7">{{ o.cutoff | sclock if o.cutoff is number else "No open assigned-area work" }}</dd>
+      <dt class="col-sm-5">Area cutoff status</dt><dd class="col-sm-7">{{ o.cutoff_status }}</dd></dl>
+  </div></div></div>
+</div>
+
+<div class="card surface-card mb-3"><div class="card-header interior-section-header">Calculated demonstration pace by worktype</div>
+  <div class="table-responsive"><table class="table modern-table interior-table table-sm readable-table data-table mb-0"><thead><tr><th>Work type</th><th class="text-end">Completed lines</th><th class="text-end">Pieces</th><th class="text-end">Logged hours</th><th class="text-end">Logged-time rate</th><th class="text-end">Picking hours</th><th class="text-end">Planning pace</th><th>Equation</th></tr></thead><tbody>
+    {% for m in o.worktype_metrics %}<tr><td>{{ m.worktype }} {{ m.name }}</td><td class="text-end">{{ m.lines }}</td><td class="text-end">{{ m.pieces | num }}</td><td class="text-end">{{ m.hours | num(2) }}</td><td class="text-end">{% if m.pace is number %}{{ m.pace | num(1) }} l/h{% else %}&mdash;{% endif %}</td><td class="text-end">{{ m.picking_hours | num(2) if m.picking_hours is number else '—' }}</td><td class="text-end">{% if m.planning_pace is number %}<strong>{{ m.planning_pace | num(1) }} l/h</strong>{% else %}&mdash;{% endif %}</td><td class="small">planning pace = completed lines &divide; picking time (gaps over the limit count as waiting)</td></tr>{% endfor %}
+  </tbody></table></div></div>
+
+<div class="card surface-card mb-3"><div class="card-header interior-section-header">Reallocation eligibility</div>
+  <div class="table-responsive"><table class="table modern-table interior-table table-sm readable-table data-table eligibility-table mb-0"><thead><tr><th>Destination</th><th>Familiarity basis</th><th class="text-end">At-risk trucks</th><th class="text-end">Estimated contribution</th><th>Decision</th><th>Reason</th></tr></thead><tbody>
+    {% for e in o.eligibility %}<tr class="{% if e.state == 'Eligible candidate' %}table-success{% endif %}"><td>{{ e.worktype }} {{ e.name }}</td><td class="provenance-cell"><span class="badge text-bg-{{ 'success' if e.familiarity.provenance == 'ACTUAL HISTORICAL' else 'warning' }}">{{ e.familiarity.provenance }}</span></td><td class="text-end">{{ e.at_risk_trucks }}</td><td class="text-end">{% if e.estimated_pace is number %}{{ e.estimated_pace | num(1) }} l/h{% else %}&mdash;{% endif %}</td><td>{{ e.state }}</td><td class="small long-value">{{ e.reason }}</td></tr>{% else %}<tr><td colspan="6" class="text-muted">No other familiar work type is recorded.</td></tr>{% endfor %}
+  </tbody></table></div><div class="card-footer small text-muted">For simulated familiarity, estimated destination contribution = MIN(actual source pace, actual destination per-person rate). Eligibility also requires active status and proof that the source remains on time after removal.</div></div>
+
+<div class="row g-3 mb-4 detail-section-row"><div class="col-lg-6"><div class="card surface-card h-100"><div class="card-header interior-section-header">Assignment history available by snapshot</div><ul class="list-group list-group-flush interior-list">
+  {% for a in o.assignments %}<li class="list-group-item">Snapshot {{ a.snapshot }} at {{ a.time | sclock }}: WT {{ a.worktype }} {{ a.name }}{% if a.active %} <span class="badge text-bg-success">active</span>{% endif %}</li>{% endfor %}
+</ul></div></div><div class="col-lg-6"><div class="card surface-card h-100"><div class="card-header interior-section-header">Selected reallocation at this snapshot</div><ul class="list-group list-group-flush interior-list">
+  {% for m in o.selected_moves %}<li class="list-group-item">WT {{ m.source_worktype }} {{ m.source }} &rarr; WT {{ m.destination_worktype }} {{ m.destination }}; {{ m.familiarity_type }}<div class="small text-muted">{{ m.eligibility }} {{ m.destination_pace_basis }}.</div></li>{% else %}<li class="list-group-item text-muted">Not selected for a move at this snapshot.</li>{% endfor %}
+</ul></div></div></div>
+{% endblock %}

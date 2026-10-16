@@ -1,0 +1,167 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard{% endblock %}
+{% block header_title %}Dashboard{% endblock %}
+{% block content %}
+<section class="dashboard-intro" aria-labelledby="dashboard-title">
+  <div>
+    <div class="eyebrow"><span class="live-dot"></span> OPERATIONAL OVERVIEW <span class="eyebrow-separator">/</span> {{ analysis_date }}</div>
+    <h1 id="dashboard-title">Dashboard <span class="title-sparkle"><i class="bi bi-stars" aria-hidden="true"></i></span></h1>
+    <p>Truck readiness, picking performance, and workforce insights for warehouse {{ warehouse_id }}.</p>
+  </div>
+  <div class="dashboard-actions">
+    <div class="snapshot-context"><i class="bi bi-clock-history" aria-hidden="true"></i> Snapshot <strong>{{ current.snapshot_time | clock }}</strong><span class="context-divider"></span> {{ current.snapshot_no }} of {{ snaps|length }}</div>
+    <a href="{{ url_for('planner', snapshot=current.snapshot_no) }}" class="btn btn-soft-primary"><i class="bi bi-people" aria-hidden="true"></i><span>Workforce planner</span></a>
+    <a class="btn btn-primary export-btn" href="{{ url_for('export_trucks', snapshot=current.snapshot_no, q=search, risk=risk_filter) }}"><i class="bi bi-download" aria-hidden="true"></i> Export</a>
+  </div>
+</section>
+
+<div class="kpi-panel" aria-label="Truck status summary">
+  <div class="stat-card">
+    <div class="stat-header"><span>Total trucks</span><span class="stat-icon tone-primary"><i class="bi bi-truck" aria-hidden="true"></i></span></div>
+    <div class="stat-number">{{ metrics.total }}</div>
+    <div class="stat-meta"><span class="stat-dot tone-primary-dot"></span> Trucks in current snapshot</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-header"><span>On-time trucks</span><span class="stat-icon tone-success"><i class="bi bi-check2-circle" aria-hidden="true"></i></span></div>
+    <div class="stat-number">{{ metrics.healthy }}</div>
+    <div class="stat-meta"><span class="metric-pill pill-success"><i class="bi bi-arrow-up-right" aria-hidden="true"></i> {{ metrics.on_time_pct }}%</span> On time or fully picked</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-header"><span>At-risk trucks</span><span class="stat-icon tone-amber"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></span></div>
+    <div class="stat-number">{{ metrics.risk }}</div>
+    <div class="stat-meta"><span class="metric-pill pill-amber">Attention needed</span> Conservative ETC</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-header"><span>Critical / delayed</span><span class="stat-icon tone-danger"><i class="bi bi-exclamation-octagon" aria-hidden="true"></i></span></div>
+    <div class="stat-number">{{ metrics.critical }}</div>
+    <div class="stat-meta"><span class="metric-pill pill-danger">Cutoff or dispatch</span> Requires review</div>
+  </div>
+</div>
+
+<div class="dashboard-columns" id="analytics">
+  <div class="dashboard-primary">
+    <section class="card analytics-card trend-card" id="risk-trend" aria-labelledby="risk-chart-title">
+      <div class="dashboard-card-heading">
+        <div><div class="card-kicker">PERFORMANCE ANALYTICS</div><h2 id="risk-chart-title">Truck readiness trend</h2><p>On-time / fully picked share across observed replay snapshots</p></div>
+        <span class="card-action-label"><i class="bi bi-graph-up-arrow" aria-hidden="true"></i> Conservative status</span>
+      </div>
+      <div class="trend-headline"><span class="trend-headline-value">{{ metrics.on_time_pct }}<small>%</small></span><span class="trend-headline-caption">{{ metrics.healthy }} of {{ metrics.total }} trucks on time / fully picked<br><span>as of {{ current.snapshot_time | clock }}</span></span></div>
+      <div id="risk-trend-chart" class="chart trend-plot" role="img" aria-label="On-time share by snapshot time. The values are provided in the accessible trend table below."></div>
+      <div class="health-summary" aria-label="Current operational health">
+        <a href="{{ url_for('dashboard', snapshot=current.snapshot_no, risk='healthy') }}#truck-performance" class="health-item health-success"><div class="health-item-label"><i class="bi bi-circle-fill"></i> On time</div><strong>{{ metrics.healthy }}</strong><span>Ready / on track</span></a>
+        <a href="{{ url_for('dashboard', snapshot=current.snapshot_no, risk='risk') }}#truck-performance" class="health-item health-warning"><div class="health-item-label"><i class="bi bi-circle-fill"></i> At risk</div><strong>{{ metrics.risk }}</strong><span>Misses buffered deadline</span></a>
+        <a href="{{ url_for('dashboard', snapshot=current.snapshot_no, risk='critical') }}#truck-performance" class="health-item health-danger"><div class="health-item-label"><i class="bi bi-circle-fill"></i> Critical</div><strong>{{ metrics.critical }}</strong><span>Pick cutoff passed / left short</span></a>
+      </div>
+      <div class="card-note">{{ metrics.unknown }} truck(s) have unknown/pending readiness. This trend reflects the selected supervisor scenario and the configured {{ safety_buffer_minutes }}-minute safety buffer; it is not a probability forecast.</div>
+    </section>
+
+    <section class="card analytics-card performance-card" id="truck-performance" aria-labelledby="truck-table-title">
+      <div class="dashboard-card-heading table-heading">
+        <div><div class="card-kicker">SHIPMENT MONITOR</div><h2 id="truck-table-title">Truck performance</h2><p>Conservative estimated readiness at the selected snapshot</p></div>
+        <span class="record-count">{{ total_matching }} / {{ metrics.total }} trucks</span>
+      </div>
+      <div class="table-toolbar">
+        <form action="{{ url_for('dashboard') }}#truck-performance" method="get" class="table-search" role="search">
+          <i class="bi bi-search" aria-hidden="true"></i>
+          <input type="search" name="q" placeholder="Find truck, status or worktype..." value="{{ search }}" aria-label="Find truck">
+          <input type="hidden" name="snapshot" value="{{ current.snapshot_no }}">
+          {% if risk_filter %}<input type="hidden" name="risk" value="{{ risk_filter }}">{% endif %}
+          <button type="submit" aria-label="Search"><i class="bi bi-arrow-return-left"></i></button>
+        </form>
+        <div class="table-filters" aria-label="Filter trucks by risk">
+          {% for value, label in [('', 'All'),('healthy','On time'),('risk','At risk'),('critical','Critical'),('unknown','Unknown')] %}
+          <a href="{{ url_for('dashboard', snapshot=current.snapshot_no, risk=value, q=search) }}#truck-performance" class="filter-chip {% if risk_filter == value %}selected{% endif %}" {% if risk_filter == value %}aria-current="true"{% endif %}>{{ label }}</a>
+          {% endfor %}
+        </div>
+      </div>
+      <div class="table-responsive modern-table-scroll">
+        <table class="table modern-table dashboard-table" id="truck-table">
+          <thead><tr>
+            <th><button type="button" class="sort-button" data-sort="text" aria-label="Sort by truck ID">Truck / shipment <i class="bi bi-arrow-down-up"></i></button></th>
+            <th><button type="button" class="sort-button" data-sort="text" aria-label="Sort by status">Current status <i class="bi bi-arrow-down-up"></i></button></th>
+            <th><button type="button" class="sort-button" data-sort="number" aria-label="Sort by ETA">Ready / ETC <i class="bi bi-arrow-down-up"></i></button></th>
+            <th><button type="button" class="sort-button" data-sort="number" aria-label="Sort by remaining lines">Remaining <i class="bi bi-arrow-down-up"></i></button></th>
+            <th><button type="button" class="sort-button" data-sort="text" aria-label="Sort by risk">Risk level <i class="bi bi-arrow-down-up"></i></button></th>
+            <th><button type="button" class="sort-button" data-sort="number" aria-label="Sort by staffed areas">Staffed areas <i class="bi bi-arrow-down-up"></i></button></th>
+            <th>Details</th>
+          </tr></thead>
+          <tbody>
+          {% for t in trucks %}
+            <tr class="clickable" data-href="{{ url_for('truck', shipment_id=t.shipment_id, snapshot=current.snapshot_no) }}" tabindex="0" aria-label="Open truck {{ t.shipment_id }} details">
+              <td data-value="{{ t.shipment_id }}"><a class="shipment-link" href="{{ url_for('truck', shipment_id=t.shipment_id, snapshot=current.snapshot_no) }}"><span class="truck-mini-icon"><i class="bi bi-truck"></i></span>{{ t.shipment_id }}</a><small class="cell-sub">Door {{ t.dock_door or '—' }}</small></td>
+              <td data-value="{{ t.planning_status }}"><span class="status-indicator status-{{ t.category }}"><i class="bi bi-circle-fill"></i>{{ t.planning_status }}</span></td>
+              <td data-value="{{ (t.ready_time_late.hour * 60 + t.ready_time_late.minute) if t.ready_time_late else 99999 }}"><span class="cell-primary">{{ t.ready_time_late | clock if t.ready_time_late else '—' }}</span><small class="cell-sub">Conservative · {{ t.etc_high_hours | hhmm }} h ETC</small></td>
+              <td data-value="{{ t.open_lines }}"><span class="cell-primary">{{ t.open_lines }} lines</span><small class="cell-sub">of {{ t.lines_released }} released</small></td>
+              <td data-value="{{ t.category }}"><span class="risk-badge risk-{{ t.category }}">{{ {'healthy':'Healthy','risk':'At risk','critical':'Critical','unknown':'Unknown'}[t.category] }}</span></td>
+              <td data-value="{{ t.staffed_areas }}"><span class="cell-primary">{{ t.staffed_areas }} / {{ t.open_areas }}</span><small class="cell-sub">Active worktype areas</small></td>
+              <td><a class="row-arrow" href="{{ url_for('truck', shipment_id=t.shipment_id, snapshot=current.snapshot_no) }}" aria-label="View {{ t.shipment_id }}"><i class="bi bi-arrow-up-right"></i></a></td>
+            </tr>
+          {% else %}
+            <tr><td class="table-empty" colspan="7"><i class="bi bi-search"></i><strong>No trucks match these filters.</strong><span>Try another shipment ID, status, or risk filter.</span><a href="{{ url_for('dashboard', snapshot=current.snapshot_no) }}#truck-performance">Clear filters</a></td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="card-note">Staffed areas are worktype resource counts, not individually assigned truck operators. Unknown ETC means no usable productivity rate, not zero work.</div>
+    </section>
+  </div>
+
+  <div class="dashboard-secondary">
+    <section class="card analytics-card activity-card" id="activity" aria-labelledby="activity-title">
+      <div class="dashboard-card-heading"><div><div class="card-kicker">WAREHOUSE ACTIVITY</div><h2 id="activity-title">Picking activity</h2><p>Completed lines per 15-minute interval</p></div><i class="bi bi-three-dots card-more" aria-hidden="true"></i></div>
+      <div id="activity-chart" class="chart activity-plot" role="img" aria-label="Completed pick lines by 15-minute snapshot interval"></div>
+      <div class="card-note">First snapshot is a baseline, not a measured 15-minute interval. Counts come from completed source lines.</div>
+    </section>
+
+    <section class="card analytics-card gauge-card" aria-labelledby="on-time-share-title">
+      <div class="dashboard-card-heading"><div><div class="card-kicker">READINESS MIX</div><h2 id="on-time-share-title">On-time completion share</h2><p>Observed classification, not probability</p></div><i class="bi bi-three-dots card-more" aria-hidden="true"></i></div>
+      <div class="gauge-display" aria-label="{{ metrics.on_time_pct }} percent on time or fully picked">
+        <svg viewBox="0 0 240 142" aria-hidden="true" class="readiness-gauge" id="readiness-gauge"><path class="gauge-base" d="M 22 121 A 98 98 0 0 1 218 121" fill="none" stroke-width="17" stroke-linecap="round"></path><g id="gauge-segments"></g></svg>
+        <div class="gauge-number"><strong>{{ metrics.on_time_pct|round|int }}%</strong><small>On time / fully picked</small></div>
+      </div>
+      <div class="gauge-legend"><span><i class="legend-dot legend-healthy"></i>On time {{ metrics.healthy }}</span><span><i class="legend-dot legend-risk"></i>At risk {{ metrics.risk }}</span><span><i class="legend-dot legend-critical"></i>Critical {{ metrics.critical }}</span><span><i class="legend-dot legend-unknown"></i>Unknown {{ metrics.unknown }}</span></div>
+      <a class="widget-detail-link" href="{{ url_for('dashboard', snapshot=current.snapshot_no) }}#truck-performance">View truck details <i class="bi bi-arrow-up-right"></i></a>
+    </section>
+
+    <section class="card analytics-card env-card" id="environment-summary" aria-labelledby="env-summary-title">
+      <div class="dashboard-card-heading"><div><div class="card-kicker">ENVIRONMENTAL CONDITIONS · CONTEXT ONLY</div><h2 id="env-summary-title">Work-area conditions -FEATURE YET TO ADD</h2><p>Latest temperature and humidity by zone at {{ current.snapshot_time | clock }}</p></div><span class="insight-icon"><i class="bi bi-thermometer-half" aria-hidden="true"></i></span></div>
+      {% if environment_summary %}
+      <div class="table-responsive"><table class="table env-dashboard-table"><thead><tr><th>Zone</th><th class="text-end">°C</th><th class="text-end">%RH</th><th>Time</th><th>Status</th></tr></thead><tbody>
+      {% for z in environment_summary.zones %}{% set r = z.reading %}<tr><td>{{ z.zone.name }}</td><td class="text-end">{{ '%.1f'|format(r.temperature_c) if r else '—' }}</td><td class="text-end">{{ '%.0f'|format(r.humidity_pct) if r else '—' }}</td><td>{{ z.local_time[-5:] if r else '—' }}</td><td><span class="risk-badge {{ {'current':'risk-healthy','stale':'risk-risk','missing':'risk-unknown'}[z.freshness] }}">{{ z.freshness|capitalize }}{% if r and r.quality == 'suspect' %} · suspect{% endif %}</span>{% if r and r.data_label == 'SYNTHETIC' %} <span class="data-label data-label-synthetic">SYNTHETIC</span>{% endif %}</td></tr>{% endfor %}
+      </tbody></table></div>
+      <div class="insight-list">
+        <div class="insight-row"><div class="insight-symbol insight-{{ 'risk' if environment_summary.attention else 'healthy' }}"><i class="bi bi-exclamation-triangle" aria-hidden="true"></i></div><div class="insight-body"><strong>{{ environment_summary.attention|length }} data item(s) need attention</strong><p>Missing or stale readings, suspect or invalid values, sensors not reporting.</p></div></div>
+        <div class="insight-row"><div class="insight-symbol insight-primary"><i class="bi bi-calculator" aria-hidden="true"></i></div><div class="insight-body"><strong>Environment-adjusted ETC: not available</strong><p>Baseline ETC in use. {{ environment_summary.at_risk_areas }} open work area(s) miss the buffered deadline under the baseline (measured pace); no experimental estimate is applied.</p></div></div>
+      </div>
+      {% else %}
+      <p class="helper-text px-3">Environmental data is unavailable. The ETC and cutoff figures on this page are unaffected.</p>
+      {% endif %}
+      <a class="insight-planner-link" href="{{ url_for('environment', snapshot=current.snapshot_no) }}">Open environment page <i class="bi bi-arrow-right"></i></a>
+    </section>
+
+    <section class="card analytics-card insights-card" id="operational-insights" aria-labelledby="insights-title">
+      <div class="dashboard-card-heading"><div><div class="card-kicker">ACTIONABLE INSIGHTS</div><h2 id="insights-title">Operational insights</h2><p>Rule-based signals from current data</p></div><span class="insight-icon"><i class="bi bi-lightbulb" aria-hidden="true"></i></span></div>
+      <div class="insight-list">
+        {% for item in insights %}
+          <div class="insight-row"><div class="insight-symbol insight-{{ item.tone }}"><i class="bi {{ item.icon }}" aria-hidden="true"></i></div><div class="insight-body"><strong>{{ item.title }}</strong><p>{{ item.explanation }}</p></div></div>
+        {% endfor %}
+      </div>
+      <a class="insight-planner-link" href="{{ url_for('planner', snapshot=current.snapshot_no) }}">Explore workforce options <i class="bi bi-arrow-right"></i></a>
+      <div class="card-note">No generative AI or automated workforce action is running. Suggestions are existing rule-based scenario calculations.</div>
+    </section>
+  </div>
+</div>
+<section class="card analytics-card reference-chart" aria-labelledby="etc-reference-title">
+  <details>
+    <summary class="reference-toggle"><span><i class="bi bi-bar-chart-steps"></i> <strong id="etc-reference-title">ETC versus time to buffered cutoff</strong><small>Existing truck-level comparison · expand chart</small></span><i class="bi bi-chevron-down" aria-hidden="true"></i></summary>
+    <div class="reference-chart-inner"><div id="etc-chart" class="chart"></div><p class="card-note">Point ETC, slower measured-pace bound, and hours remaining to each truck's effective buffered cutoff. Missing rate is explicitly marked unknown.</p></div>
+  </details>
+</section>
+<details class="accessibility-data"><summary>Accessible snapshot trend data</summary><table><caption>On-time and risk status by snapshot</caption><thead><tr><th>Time</th><th>On-time share</th><th>At risk</th><th>Critical</th><th>Unknown</th><th>Completed in interval</th></tr></thead><tbody>{% for x in trend %}<tr><td>{{ x.time }}</td><td>{{ x.on_time }}%</td><td>{{ x.risk }}</td><td>{{ x.critical }}</td><td>{{ x.unknown }}</td><td>{{ x.completed if x.completed is not none else 'Baseline' }}</td></tr>{% endfor %}</tbody></table></details>
+<script type="application/json" id="chart-data">{{ chart | tojson }}</script>
+<script type="application/json" id="analytics-data">{{ {'trend':trend, 'metrics':metrics} | tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/plotly.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}" defer></script>
+{% endblock %}
